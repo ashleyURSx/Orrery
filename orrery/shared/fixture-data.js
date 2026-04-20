@@ -95,3 +95,60 @@ export const SOURCES = [
     citation: 'Cuyahoga County Probate Court, adoption decree, Ruth Chen, 1955.',
     confidence: 'high', truth_stamp: 'verified' },
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 1 (immigrant generation, born 1820–1835)              */
+/* -------------------------------------------------------------------------- */
+
+const g1 = [
+  { id: 'g1a', name: "Patrick O'Sullivan", sex: 'M', aka: ['Paddy'],
+    vitals: {
+      birth: { date: exactDate(1822, 6, 14), place_id: 'place-cork', source_ids: ['src-cork-baptism-1822'] },
+      death: { date: exactDate(1891, 11, 2), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Emigrated from Cork during the Great Famine, 1850.' },
+  { id: 'g1b', name: 'Mary Donnelly', sex: 'F', aka: ['Mary Donnelly O\'Sullivan'],
+    vitals: {
+      birth: { date: approxDate(1824, null, null, 'ABT 1824'), place_id: 'place-cork', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1893, 4, 18), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1c', name: 'Sean MacCarthy', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: approxDate(1820), place_id: 'place-cork', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1885, 9, 12), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1d', name: 'Bridget Ryan', sex: 'F', aka: ['Bridget Ryan MacCarthy'],
+    vitals: {
+      birth: { date: approxDate(1825), place_id: 'place-cork', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1890, 7, 3), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1e', name: 'Wilhelm Kessler', sex: 'M', aka: ['William Kessler'],
+    vitals: {
+      birth: { date: exactDate(1830, 3, 22), place_id: 'place-hanover', source_ids: ['src-ellis-1853'] },
+      death: { date: exactDate(1902, 1, 14), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Arrived Ellis Island 1853 on SS Bremen.' },
+  { id: 'g1f', name: 'Elisabeth Müller', sex: 'F', aka: ['Elisabeth Mueller Kessler'],
+    vitals: {
+      birth: { date: approxDate(1835), place_id: 'place-hanover', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1910, 6, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1g', name: 'Hans Schmidt', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1828, 5, 9), place_id: 'place-prussia', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1898, 12, 21), place_id: 'place-nyc', source_ids: ['src-us-census-1900'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1h', name: 'Katharina Becker', sex: 'F', aka: ['Katharina Becker Schmidt'],
+    vitals: {
+      birth: { date: approxDate(1832), place_id: 'place-prussia', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1905, 2, 16), place_id: 'place-nyc', source_ids: ['src-us-census-1900'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
