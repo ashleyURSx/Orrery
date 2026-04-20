@@ -382,3 +382,80 @@ const g4 = [
     },
     research_status: 'complete', privacy: 'family' },
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 5 (born 1935–1955, living generation for most)        */
+/* -------------------------------------------------------------------------- */
+//
+// g5i (Ruth) is adopted by g4e (Anne O'Sullivan) — a single adoptive mother.
+
+const g5 = [
+  { id: 'g5a', name: "Thomas O'Sullivan Jr.", sex: 'M', aka: ['Tom Jr.'],
+    vitals: {
+      birth: { date: exactDate(1935, 3, 7), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2010, 9, 2), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5b', name: "Elizabeth O'Sullivan", sex: 'F', aka: ['Liz'],
+    vitals: {
+      birth: { date: exactDate(1938, 6, 15), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5c', name: "Patrick John O'Sullivan", sex: 'M', aka: ['Pat Jr.'],
+    vitals: {
+      birth: { date: exactDate(1945, 2, 20), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2020, 5, 11), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5d', name: "Mary Elizabeth O'Sullivan", sex: 'F', aka: ['Beth'],
+    vitals: {
+      birth: { date: exactDate(1948, 11, 4), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5e', name: "James Walsh O'Sullivan", sex: 'M', aka: ['Jamie'],
+    vitals: {
+      birth: { date: exactDate(1952, 8, 13), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5f', name: 'Carl Brenner Jr.', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1940, 4, 2), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5g', name: 'Anna Brenner', sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1943, 7, 28), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5h', name: 'William Brenner', sex: 'M', aka: ['Bill'],
+    vitals: {
+      birth: { date: exactDate(1946, 12, 10), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5i', name: "Ruth Chen O'Sullivan", sex: 'F', aka: ['Ruth Chen'],
+    vitals: {
+      birth: { date: exactDate(1955, 5, 9), place_id: 'place-cleveland', source_ids: ['src-adoption-1955'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Adopted by g4e (Anne O\'Sullivan) in 1955. Non-biological line.' },
+  { id: 'g5j', name: 'Linda Walsh', sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1948, 9, 16), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Combined person array                                                      */
+/* -------------------------------------------------------------------------- */
+
+export const PERSONS = [...g1, ...g2, ...g3, ...g4, ...g5];
+// Sanity check: 8 + 8 + 14 + 10 + 10 = 50.
