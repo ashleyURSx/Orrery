@@ -563,3 +563,88 @@ export const RELATIONSHIPS = [
     source_ids: ['src-adoption-1955'],
   }),
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Events (a curated slice, not an event per vital — vitals live on Person)  */
+/* -------------------------------------------------------------------------- */
+//
+// Phase 1 deliberately keeps events sparse — the main structural facts
+// (births, deaths) live on Person.vitals. Events here capture things that
+// don't belong on any single Person: marriages, immigrations, and a few
+// milestone residences. GEDCOM-standards alignment comes in Phase 2.
+
+let _evtId = 0;
+const evt = (type, personIds, extra = {}) => ({
+  id: `evt-${String(++_evtId).padStart(3, '0')}`,
+  type, person_ids: personIds, date: null, place_id: null,
+  source_ids: [], notes: '', ...extra,
+});
+
+export const EVENTS = [
+  // G1 immigrations
+  evt('immigration', ['g1a', 'g1b'], {
+    date: exactDate(1850, 9, 3), place_id: 'place-boston',
+    source_ids: ['src-ship-manifest-1850'],
+    notes: 'SS Jeanie Johnston, Cork → Boston.',
+  }),
+  evt('immigration', ['g1c', 'g1d'], {
+    date: exactDate(1852, 5, 11), place_id: 'place-boston',
+    notes: 'Arrived during post-Famine emigration wave.',
+  }),
+  evt('immigration', ['g1e'], {
+    date: exactDate(1853, 4, 12), place_id: 'place-ellis',
+    source_ids: ['src-ellis-1853'],
+    notes: 'SS Bremen, Hamburg → New York.',
+  }),
+  evt('immigration', ['g1g', 'g1h'], {
+    date: exactDate(1855, 8, 22), place_id: 'place-ellis',
+  }),
+
+  // G2 marriage milestone (the MacCarthy/O'Sullivan union, Boston)
+  evt('marriage', ['g2a', 'g2c'], {
+    date: exactDate(1880, 6, 14), place_id: 'place-boston',
+    source_ids: ['src-marriage-boston-1880'],
+  }),
+
+  // G2/G3 westward migration — family moves Boston → Cleveland
+  evt('residence', ['g2a', 'g2c', 'g3a', 'g3c'], {
+    date: approxDate(1898), place_id: 'place-cleveland',
+    source_ids: ['src-us-census-1900'],
+    notes: 'Family relocates from Boston to Cleveland, Ohio.',
+  }),
+
+  // G3 cross-lineage marriages
+  evt('marriage', ['g3a', 'g3b'], {
+    date: exactDate(1907, 10, 12), place_id: 'place-cleveland',
+    notes: 'P.J. O\'Sullivan\'s first marriage; Helen Walsh died in childbirth 1910.',
+  }),
+  evt('marriage', ['g3a', 'g3f'], {
+    date: exactDate(1911, 6, 17), place_id: 'place-cleveland',
+    source_ids: ['src-marriage-cleveland-1911'],
+    notes: 'The Irish-German merger.',
+  }),
+
+  // G4 marriages
+  evt('marriage', ['g4b', 'g4g'], {
+    date: exactDate(1940, 8, 3), place_id: 'place-cleveland',
+  }),
+  evt('marriage', ['g4c', 'g4h'], {
+    date: exactDate(1938, 10, 22), place_id: 'place-cincinnati',
+  }),
+
+  // Adoption
+  evt('adoption', ['g4e', 'g5i'], {
+    date: exactDate(1955, 5, 9), place_id: 'place-cleveland',
+    source_ids: ['src-adoption-1955'],
+    notes: 'Ruth Chen adopted by Anne O\'Sullivan (unmarried adoptive mother).',
+  }),
+
+  // Naturalization examples
+  evt('naturalization', ['g1a'], {
+    date: exactDate(1862, 4, 10), place_id: 'place-boston',
+  }),
+  evt('naturalization', ['g1e'], {
+    date: exactDate(1865, 7, 23), place_id: 'place-nyc',
+  }),
+];
+
