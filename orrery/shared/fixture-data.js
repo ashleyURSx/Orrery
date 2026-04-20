@@ -309,3 +309,76 @@ const g3 = [
     },
     research_status: 'complete', privacy: 'family' },
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 4 (born 1908–1925, merged Irish-German-Walsh line)    */
+/* -------------------------------------------------------------------------- */
+//
+// g4a (Thomas) is child of g3a+g3b (Helen, d. 1910) — half-sibling to g4b-e.
+// g4b-e are children of g3a+g3f (Margarethe, m. 1911).
+
+const g4 = [
+  { id: 'g4a', name: "Thomas Sullivan O'Sullivan", sex: 'M', aka: ['Tommy Sr.'],
+    vitals: {
+      birth: { date: exactDate(1908, 7, 14), place_id: 'place-cleveland', source_ids: ['src-us-census-1920', 'src-family-bible-osullivan'] },
+      death: { date: exactDate(1980, 3, 19), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Only child of g3a\'s first marriage (to Helen Walsh). Half-sibling to g4b-e.' },
+  { id: 'g4b', name: "John Francis O'Sullivan", sex: 'M', aka: ['Jack O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1912, 4, 8), place_id: 'place-cleveland', source_ids: ['src-us-census-1920', 'src-family-bible-osullivan'] },
+      death: { date: exactDate(1985, 10, 17), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4c', name: "Mary O'Sullivan", sex: 'F', aka: ['Mary O\'Sullivan Brenner'],
+    vitals: {
+      birth: { date: exactDate(1915, 9, 22), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2000, 2, 3), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4d', name: "Robert O'Sullivan", sex: 'M', aka: ['Bob O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1918, 1, 11), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(1982, 6, 30), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4e', name: "Anne O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1921, 5, 27), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2010, 11, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Unmarried; adoptive mother of g5i (Ruth Chen O\'Sullivan).' },
+  { id: 'g4f', name: 'Sarah Fitzgerald', sex: 'F', aka: ['Sarah Fitzgerald O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1910, 8, 3), place_id: 'place-boston', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1990, 12, 22), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4g', name: 'Eleanor Walsh', sex: 'F', aka: ['Eleanor Walsh O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1915, 2, 14), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1990, 7, 4), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4h', name: 'Carl Brenner', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1914, 11, 29), place_id: 'place-cincinnati', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1990, 5, 12), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4i', name: 'Patrick Walsh Jr.', sex: 'M', aka: ['Pat Walsh'],
+    vitals: {
+      birth: { date: exactDate(1920, 6, 6), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1985, 9, 30), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Brother of Eleanor Walsh (g4g). Provides a cousin branch via the Walsh line.' },
+  { id: 'g4j', name: 'Patricia Murphy', sex: 'F', aka: ['Patricia Murphy Walsh'],
+    vitals: {
+      birth: { date: exactDate(1922, 10, 18), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+      death: { date: exactDate(2005, 8, 14), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
