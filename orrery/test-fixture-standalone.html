@@ -1,0 +1,2565 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ORRERY — Phase 1 test fixture</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* Minimal utility CSS. Phase 3 is where beauty lives — this page is a
+       debugging console for the schema. */
+    :root {
+      --bg: #0c0b13;
+      --panel: #17152a;
+      --text: #e6e1cf;
+      --muted: #8c88a6;
+      --rule: #2a2744;
+      --gold: #d4a84a;
+      --accent: #8b6fff;
+      --verified: #5bbfa3;
+      --unverified: #e06b74;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg); color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      line-height: 1.45;
+    }
+    body { padding: 2rem 2.5rem 6rem; max-width: 1100px; margin: 0 auto; }
+    h1 { font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin: 0 0 0.25rem; }
+    h1 .sub { display: block; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.3em; margin-top: 0.25rem; }
+    h2 { margin: 2.5rem 0 0.75rem; font-size: 1.05rem; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; }
+    h3 { margin: 1.25rem 0 0.5rem; font-size: 0.9rem; color: var(--gold); font-weight: 600; }
+    p, li { font-size: 0.92rem; }
+    code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre {
+      background: var(--panel); border: 1px solid var(--rule);
+      padding: 0.75rem 1rem; border-radius: 6px;
+      white-space: pre-wrap; word-break: break-word;
+      font-size: 0.82rem; line-height: 1.55;
+      max-height: 60vh; overflow-y: auto;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--rule);
+      border-radius: 8px; padding: 1rem 1.25rem; margin: 0.75rem 0;
+    }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .stat {
+      background: var(--panel); border: 1px solid var(--rule);
+      border-radius: 6px; padding: 0.5rem 0.85rem; min-width: 120px;
+    }
+    .stat .label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; }
+    .stat .value { color: var(--gold); font-size: 1.4rem; font-family: ui-monospace, monospace; }
+    .verified { color: var(--verified); }
+    .unverified { color: var(--unverified); font-weight: 600; }
+    .pass { color: var(--verified); }
+    .fail { color: var(--unverified); font-weight: 600; }
+    .muted { color: var(--muted); }
+    .query-label { color: var(--accent); font-weight: 600; }
+    button {
+      background: var(--accent); color: #fff; border: 0;
+      padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;
+      font-family: inherit; font-size: 0.85rem; letter-spacing: 0.05em;
+    }
+    button:hover { filter: brightness(1.1); }
+    .controls { display: flex; gap: 0.75rem; margin: 1rem 0; }
+    ul { padding-left: 1.25rem; }
+    li { margin: 0.15rem 0; }
+    hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
+    .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.72rem; background: var(--rule); color: var(--muted); margin-left: 0.4rem; font-family: ui-monospace, monospace; }
+    .tag.verified { color: var(--verified); border: 1px solid var(--verified); background: transparent; }
+    .tag.unverified { color: var(--unverified); border: 1px solid var(--unverified); background: transparent; }
+  </style>
+</head>
+<body>
+  <h1>ORRERY<span class="sub">phase 1 · test fixture · Cork / Kessler / O'Sullivan</span></h1>
+
+  <p class="muted">
+    Loads 50 people across 5 generations, runs every graph query against them, and
+    prints results below. Open the console and use
+    <code>window.orrery.db</code> and <code>window.orrery.queries</code> to explore.
+  </p>
+
+  <div class="controls">
+    <button id="btn-reload">Reload fixture</button>
+    <button id="btn-wipe">Wipe &amp; reload</button>
+  </div>
+
+  <section id="counts"><h2>Fixture counts</h2><div id="counts-body" class="row"></div></section>
+  <section id="truth-stamper"><h2>Truth Stamper check</h2><div id="truth-body"></div></section>
+  <section id="queries"><h2>Graph query results</h2><div id="queries-body"></div></section>
+  <section id="errors" hidden><h2>Errors</h2><pre id="errors-body"></pre></section>
+
+  <script type="module">
+import Dexie from 'https://unpkg.com/dexie@4/dist/dexie.mjs';
+
+/* ================== shared/events.js ================== */
+// orrery/shared/events.js
+// Entity validators, type enums, and date helpers for ORRERY.
+//
+// The seven entities from db.js flow through this module. Every write goes
+// through a validate* function, which throws on structural violations.
+// We do NOT try to repair bad data here — repair is a migration concern.
+//
+// Date model: GEDCOM-compatible envelope. A `date` value is either null or
+// an object with a `kind` discriminator:
+//   { kind: 'exact',       year, month?, day? }
+//   { kind: 'approximate', year, month?, day?, raw? }     // "ABT 1842"
+//   { kind: 'before',      year, month?, day? }           // "BEF 1850"
+//   { kind: 'after',       year, month?, day? }           // "AFT 1850"
+//   { kind: 'between',     start: {year, month?, day?}, end: {year, month?, day?} }
+//   { kind: 'unknown',     raw? }
+//
+// Phase 2 (GEDCOM) will round-trip through these shapes unchanged.
+
+/* -------------------------------------------------------------------------- */
+/*  Type enums                                                                 */
+/* -------------------------------------------------------------------------- */
+
+const SEX = Object.freeze(['M', 'F', 'X', 'U']); // male, female, intersex/nonbinary, unknown
+
+const RESEARCH_STATUS = Object.freeze([
+  'complete',
+  'incomplete',
+  'conflicting',
+  'unknown',
+]);
+
+const PRIVACY = Object.freeze([
+  'public',
+  'family',
+  'private',
+  'encrypted',
+]);
+
+const EVENT_TYPES = Object.freeze([
+  'birth',
+  'death',
+  'marriage',
+  'divorce',
+  'immigration',
+  'emigration',
+  'residence',
+  'occupation',
+  'education',
+  'military',
+  'religious',
+  'baptism',
+  'burial',
+  'adoption',
+  'naturalization',
+  'imprisonment',
+  'emancipation',
+  'enslavement',
+  'chosen-family',
+]);
+
+const SOURCE_TYPES = Object.freeze([
+  'census',
+  'vital-record',
+  'newspaper',
+  'oral-history',
+  'dna',
+  'photograph',
+  'letter',
+  'government-record',
+  'ship-manifest',
+  'military-record',
+  'church-record',
+  'deed',
+  'will',
+  'probate',
+  'tombstone',
+  'other',
+]);
+
+const CONFIDENCE = Object.freeze(['high', 'medium', 'low', 'disputed']);
+
+const TRUTH_STAMP = Object.freeze(['verified', 'unverified', 'contested']);
+
+const MEDIA_TYPES = Object.freeze([
+  'photo',
+  'audio',
+  'video',
+  'document',
+  'scan',
+]);
+
+const RELATIONSHIP_TYPES = Object.freeze([
+  'parent',
+  'child',
+  'spouse',
+  'partner',
+  'sibling',
+  'half-sibling',
+  'step-parent',
+  'step-child',
+  'adoptive-parent',
+  'adopted-child',
+  'foster',
+  'godparent',
+  'godchild',
+  'enslaver',
+  'enslaved-by',
+  'witness',
+  'business-partner',
+  'chosen-family',
+]);
+
+/**
+ * Parent-like edges pointing from parent to child. Used by relationships.js
+ * to build ancestor/descendant queries. The second element in each pair is
+ * the flag we set on the resulting edge.
+ */
+const PARENT_EDGE_TYPES = Object.freeze([
+  'parent',
+  'adoptive-parent',
+  'step-parent',
+  'foster',
+  'godparent',
+]);
+
+/** Edges whose `type` implies a biological parent link. */
+const BIOLOGICAL_PARENT_TYPES = Object.freeze(['parent']);
+
+const HEIRLOOM_TYPES = Object.freeze([
+  'document',
+  'jewelry',
+  'furniture',
+  'textile',
+  'tool',
+  'photograph',
+  'land',
+  'recipe',
+  'song',
+  'ritual',
+  'other',
+]);
+
+const DATE_KINDS = Object.freeze([
+  'exact',
+  'approximate',
+  'before',
+  'after',
+  'between',
+  'unknown',
+]);
+
+/* -------------------------------------------------------------------------- */
+/*  Internal guards                                                            */
+/* -------------------------------------------------------------------------- */
+
+function _isString(x) {
+  return typeof x === 'string';
+}
+
+function _isNonEmptyString(x) {
+  return typeof x === 'string' && x.trim().length > 0;
+}
+
+function _isArrayOfStrings(x) {
+  return Array.isArray(x) && x.every(_isString);
+}
+
+function _enumCheck(name, value, allowed, { nullable = false } = {}) {
+  if (value == null) {
+    if (nullable) return;
+    throw new TypeError(`${name}: missing value (expected one of ${allowed.join(', ')})`);
+  }
+  if (!allowed.includes(value)) {
+    throw new TypeError(
+      `${name}: "${value}" not in allowed set [${allowed.join(', ')}]`
+    );
+  }
+}
+
+function _require(obj, key, pred, msg) {
+  if (!pred(obj[key])) {
+    throw new TypeError(`${msg} (got ${JSON.stringify(obj[key])})`);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Date helpers                                                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Construct an exact date. All components optional except year.
+ */
+function exactDate(year, month = null, day = null) {
+  return { kind: 'exact', year, month, day };
+}
+
+function approxDate(year, month = null, day = null, raw = null) {
+  return { kind: 'approximate', year, month, day, raw };
+}
+
+function beforeDate(year, month = null, day = null) {
+  return { kind: 'before', year, month, day };
+}
+
+function afterDate(year, month = null, day = null) {
+  return { kind: 'after', year, month, day };
+}
+
+function betweenDates(start, end) {
+  return { kind: 'between', start, end };
+}
+
+function unknownDate(raw = null) {
+  return { kind: 'unknown', raw };
+}
+
+/**
+ * Validate a date envelope. Returns normalized date or throws.
+ */
+function validateDate(d, { field = 'date' } = {}) {
+  if (d == null) return null;
+  if (typeof d !== 'object') {
+    throw new TypeError(`${field}: expected object or null, got ${typeof d}`);
+  }
+  _enumCheck(`${field}.kind`, d.kind, DATE_KINDS);
+
+  switch (d.kind) {
+    case 'exact':
+    case 'approximate':
+    case 'before':
+    case 'after': {
+      if (typeof d.year !== 'number' || !Number.isFinite(d.year)) {
+        throw new TypeError(`${field}.year: expected finite number, got ${d.year}`);
+      }
+      if (d.month != null && (d.month < 1 || d.month > 12)) {
+        throw new RangeError(`${field}.month: out of range (${d.month})`);
+      }
+      if (d.day != null && (d.day < 1 || d.day > 31)) {
+        throw new RangeError(`${field}.day: out of range (${d.day})`);
+      }
+      return d;
+    }
+    case 'between': {
+      if (!d.start || !d.end) {
+        throw new TypeError(`${field}: between requires both start and end`);
+      }
+      if (typeof d.start.year !== 'number' || typeof d.end.year !== 'number') {
+        throw new TypeError(`${field}: between endpoints need numeric years`);
+      }
+      return d;
+    }
+    case 'unknown':
+      return d;
+    default:
+      throw new TypeError(`${field}.kind: unreachable`);
+  }
+}
+
+/**
+ * Extract the best-guess year from any date envelope. Used for timeline
+ * indexing and contemporary queries where we need a single number.
+ * Returns null if no year can be inferred.
+ */
+function yearOf(d) {
+  if (!d) return null;
+  switch (d.kind) {
+    case 'exact':
+    case 'approximate':
+    case 'before':
+    case 'after':
+      return typeof d.year === 'number' ? d.year : null;
+    case 'between':
+      // Midpoint is the safest single-year representation.
+      if (d.start?.year != null && d.end?.year != null) {
+        return Math.round((d.start.year + d.end.year) / 2);
+      }
+      return d.start?.year ?? d.end?.year ?? null;
+    case 'unknown':
+    default:
+      return null;
+  }
+}
+
+/**
+ * Does `year` fall inside the range represented by `d`? "before X" includes
+ * every year strictly less than X; "after X" every year strictly greater;
+ * "between" is inclusive; "unknown" always returns false.
+ */
+function yearMatches(d, year) {
+  if (d == null || typeof year !== 'number') return false;
+  switch (d.kind) {
+    case 'exact':
+    case 'approximate':
+      return d.year === year;
+    case 'before':
+      return year < d.year;
+    case 'after':
+      return year > d.year;
+    case 'between':
+      return year >= (d.start?.year ?? -Infinity) && year <= (d.end?.year ?? Infinity);
+    case 'unknown':
+    default:
+      return false;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Vital fact validator                                                       */
+/* -------------------------------------------------------------------------- */
+
+function validateVitalFact(v, field) {
+  if (v == null) return;
+  if (typeof v !== 'object') {
+    throw new TypeError(`${field}: expected object or null`);
+  }
+  if (v.date !== undefined) validateDate(v.date, { field: `${field}.date` });
+  if (v.place_id != null && !_isString(v.place_id)) {
+    throw new TypeError(`${field}.place_id: expected string`);
+  }
+  if (v.source_ids != null && !_isArrayOfStrings(v.source_ids)) {
+    throw new TypeError(`${field}.source_ids: expected string[]`);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Entity validators                                                          */
+/* -------------------------------------------------------------------------- */
+
+function validatePerson(p) {
+  if (!p || typeof p !== 'object') throw new TypeError('Person: not an object');
+  _require(p, 'id', _isNonEmptyString, 'Person.id: expected non-empty string');
+  _require(p, 'name', _isString, 'Person.name: expected string');
+  if (!Array.isArray(p.aka)) throw new TypeError('Person.aka: expected array');
+  if (!p.aka.every(_isString)) throw new TypeError('Person.aka: expected string[]');
+
+  _enumCheck('Person.sex', p.sex, SEX, { nullable: true });
+  // gender is free-text — we don't enum-lock it.
+  if (p.gender != null && !_isString(p.gender)) {
+    throw new TypeError('Person.gender: expected string or null');
+  }
+
+  _enumCheck('Person.research_status', p.research_status, RESEARCH_STATUS);
+  _enumCheck('Person.privacy', p.privacy, PRIVACY);
+
+  if (!p.vitals || typeof p.vitals !== 'object') {
+    throw new TypeError('Person.vitals: expected object');
+  }
+  validateVitalFact(p.vitals.birth, 'Person.vitals.birth');
+  validateVitalFact(p.vitals.death, 'Person.vitals.death');
+  validateVitalFact(p.vitals.baptism, 'Person.vitals.baptism');
+  validateVitalFact(p.vitals.burial, 'Person.vitals.burial');
+
+  return p;
+}
+
+function validateEvent(e) {
+  if (!e || typeof e !== 'object') throw new TypeError('Event: not an object');
+  _require(e, 'id', _isNonEmptyString, 'Event.id: expected non-empty string');
+  _enumCheck('Event.type', e.type, EVENT_TYPES);
+
+  if (!_isArrayOfStrings(e.person_ids)) {
+    throw new TypeError('Event.person_ids: expected string[]');
+  }
+  if (e.person_ids.length === 0) {
+    throw new TypeError(`Event ${e.id}: at least one person_id required`);
+  }
+
+  if (e.date !== undefined) validateDate(e.date, { field: 'Event.date' });
+
+  if (e.place_id != null && !_isString(e.place_id)) {
+    throw new TypeError('Event.place_id: expected string or null');
+  }
+
+  if (!_isArrayOfStrings(e.source_ids)) {
+    throw new TypeError('Event.source_ids: expected string[]');
+  }
+
+  return e;
+}
+
+function validateSource(s) {
+  if (!s || typeof s !== 'object') throw new TypeError('Source: not an object');
+  _require(s, 'id', _isNonEmptyString, 'Source.id: expected non-empty string');
+  _enumCheck('Source.type', s.type, SOURCE_TYPES);
+  if (!_isString(s.citation)) throw new TypeError('Source.citation: expected string');
+  _enumCheck('Source.confidence', s.confidence, CONFIDENCE);
+  _enumCheck('Source.truth_stamp', s.truth_stamp, TRUTH_STAMP);
+
+  if (s.url != null && !_isString(s.url)) {
+    throw new TypeError('Source.url: expected string or null');
+  }
+  if (s.file_id != null && !_isString(s.file_id)) {
+    throw new TypeError('Source.file_id: expected string or null');
+  }
+  return s;
+}
+
+function validateMedia(m) {
+  if (!m || typeof m !== 'object') throw new TypeError('Media: not an object');
+  _require(m, 'id', _isNonEmptyString, 'Media.id: expected non-empty string');
+  _enumCheck('Media.type', m.type, MEDIA_TYPES);
+
+  if (m.file_id != null && !_isString(m.file_id)) {
+    throw new TypeError('Media.file_id: expected string or null');
+  }
+
+  if (!_isArrayOfStrings(m.linked_person_ids)) {
+    throw new TypeError('Media.linked_person_ids: expected string[]');
+  }
+  if (!_isArrayOfStrings(m.linked_event_ids)) {
+    throw new TypeError('Media.linked_event_ids: expected string[]');
+  }
+  if (m.date_taken !== undefined) validateDate(m.date_taken, { field: 'Media.date_taken' });
+  return m;
+}
+
+function validateRelationship(r) {
+  if (!r || typeof r !== 'object') throw new TypeError('Relationship: not an object');
+  _require(r, 'id', _isNonEmptyString, 'Relationship.id: expected non-empty string');
+  _require(r, 'person_a_id', _isNonEmptyString, 'Relationship.person_a_id: required');
+  _require(r, 'person_b_id', _isNonEmptyString, 'Relationship.person_b_id: required');
+  _enumCheck('Relationship.type', r.type, RELATIONSHIP_TYPES);
+
+  if (r.start_date !== undefined)
+    validateDate(r.start_date, { field: 'Relationship.start_date' });
+  if (r.end_date !== undefined)
+    validateDate(r.end_date, { field: 'Relationship.end_date' });
+
+  if (!_isArrayOfStrings(r.source_ids)) {
+    throw new TypeError('Relationship.source_ids: expected string[]');
+  }
+  return r;
+}
+
+function validatePlace(p) {
+  if (!p || typeof p !== 'object') throw new TypeError('Place: not an object');
+  _require(p, 'id', _isNonEmptyString, 'Place.id: expected non-empty string');
+  _require(p, 'name', _isString, 'Place.name: expected string');
+  if (p.modern_name != null && !_isString(p.modern_name)) {
+    throw new TypeError('Place.modern_name: expected string or null');
+  }
+  if (p.lat != null && (typeof p.lat !== 'number' || Math.abs(p.lat) > 90)) {
+    throw new RangeError(`Place.lat: out of range (${p.lat})`);
+  }
+  if (p.lon != null && (typeof p.lon !== 'number' || Math.abs(p.lon) > 180)) {
+    throw new RangeError(`Place.lon: out of range (${p.lon})`);
+  }
+  if (!Array.isArray(p.historical_jurisdictions)) {
+    throw new TypeError('Place.historical_jurisdictions: expected array');
+  }
+  return p;
+}
+
+function validateHeirloom(h) {
+  if (!h || typeof h !== 'object') throw new TypeError('Heirloom: not an object');
+  _require(h, 'id', _isNonEmptyString, 'Heirloom.id: expected non-empty string');
+  _require(h, 'name', _isString, 'Heirloom.name: expected string');
+  _enumCheck('Heirloom.type', h.type, HEIRLOOM_TYPES);
+
+  if (!Array.isArray(h.provenance_chain)) {
+    throw new TypeError('Heirloom.provenance_chain: expected array');
+  }
+  for (const link of h.provenance_chain) {
+    if (!link || typeof link !== 'object') {
+      throw new TypeError('Heirloom.provenance_chain[]: expected objects');
+    }
+    if (!_isNonEmptyString(link.person_id)) {
+      throw new TypeError('Heirloom.provenance_chain[].person_id: required');
+    }
+    if (link.from !== undefined && link.from != null)
+      validateDate(link.from, { field: 'Heirloom.provenance_chain[].from' });
+    if (link.to !== undefined && link.to != null)
+      validateDate(link.to, { field: 'Heirloom.provenance_chain[].to' });
+  }
+  if (h.current_custodian_id != null && !_isString(h.current_custodian_id)) {
+    throw new TypeError('Heirloom.current_custodian_id: expected string or null');
+  }
+  if (!_isArrayOfStrings(h.media_ids)) {
+    throw new TypeError('Heirloom.media_ids: expected string[]');
+  }
+  return h;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Truth Stamper helpers                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Given an Event, return true if it carries at least one source. No
+ * distinction between confidence levels — this is the hard floor.
+ */
+function eventHasSource(event) {
+  return Array.isArray(event?.source_ids) && event.source_ids.length > 0;
+}
+
+/**
+ * Summarize a fact's provenance. Returns an object the UI can render:
+ *   { stamp: 'verified'|'unverified', sourceCount: N, confidenceMix: {...} }
+ *
+ * Requires that the caller has already resolved source records (via
+ * db.sources.bulkGet(event.source_ids)).
+ */
+function summarizeProvenance(sources) {
+  const mix = { high: 0, medium: 0, low: 0, disputed: 0 };
+  let anyVerified = false;
+  let anyContested = false;
+  for (const s of sources ?? []) {
+    if (!s) continue;
+    if (mix[s.confidence] != null) mix[s.confidence]++;
+    if (s.truth_stamp === 'verified') anyVerified = true;
+    if (s.truth_stamp === 'contested') anyContested = true;
+  }
+  const stamp = anyContested
+    ? 'contested'
+    : anyVerified
+      ? 'verified'
+      : 'unverified';
+  return { stamp, sourceCount: sources?.length ?? 0, confidenceMix: mix };
+}
+
+/* ================== shared/db.js ================== */
+// orrery/shared/db.js
+// IndexedDB schema (Dexie.js 4) for the seven ORRERY entities.
+//
+// Truth Stamper discipline: every fact MUST carry a provenance chain.
+// Any write helper that promotes a fact to "verified" demands at least one
+// source_id. Unsourced facts are allowed, but they land in the DB as
+// truth_stamp === "unverified" and never silently upgrade.
+//
+// Storage contract:
+//   - All structured data lives here (IndexedDB via Dexie).
+//   - Binary blobs (photos, audio, scans) live in OPFS and are referenced by
+//     Media.file_id. This module does not manage OPFS; see shared/media.js
+//     (future) for the binary layer.
+//
+// Phase 1 scope: schema + CRUD helpers + seed/reset. No GEDCOM, no UI.
+
+/* -------------------------------------------------------------------------- */
+/*  Constants                                                                  */
+/* -------------------------------------------------------------------------- */
+
+const DB_NAME = 'orrery';
+const DB_VERSION = 1;
+
+/**
+ * The seven canonical entity stores. Keep these in lockstep with the
+ * validators in events.js.
+ */
+const STORES = Object.freeze({
+  persons: 'persons',
+  events: 'events',
+  sources: 'sources',
+  media: 'media',
+  relationships: 'relationships',
+  places: 'places',
+  heirlooms: 'heirlooms',
+});
+
+/* -------------------------------------------------------------------------- */
+/*  ID helpers                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Mint a fresh UUID. Uses native crypto.randomUUID(). No polyfill, no
+ * external dependency. If the host lacks it (very old browsers), we throw —
+ * ORRERY targets evergreen browsers with WebGPU; anything older is unsupported.
+ */
+function newId() {
+  if (typeof crypto === 'undefined' || typeof crypto.randomUUID !== 'function') {
+    throw new Error('crypto.randomUUID unavailable; ORRERY requires an evergreen browser.');
+  }
+  return crypto.randomUUID();
+}
+
+/**
+ * Normalize an arbitrary value into a string id. Accepts a string or an
+ * object with an `id` field. Rejects anything else.
+ */
+function toId(x) {
+  if (typeof x === 'string' && x.length > 0) return x;
+  if (x && typeof x === 'object' && typeof x.id === 'string') return x.id;
+  throw new TypeError(`Expected id or { id }, got ${typeof x}`);
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Dexie schema definition                                                    */
+/* -------------------------------------------------------------------------- */
+//
+// Dexie index syntax reference:
+//   '&field'   — unique index
+//   '*field'   — multi-entry index (arrays)
+//   '[a+b]'    — compound index
+//   ''         — auto-incremented hidden key (we do NOT use this; all PKs are
+//                explicit UUIDs so records are portable across devices).
+
+const SCHEMA_V1 = {
+  // ---- Person ----------------------------------------------------------
+  // PK: id (UUID, explicit). Indexed for name search, research status,
+  // privacy filter, and sex/gender for demographic queries.
+  persons:
+    '&id, name, research_status, privacy, sex, gender, ' +
+    'vitals.birth.date.year, vitals.death.date.year',
+
+  // ---- Event -----------------------------------------------------------
+  // Multi-entry on person_ids and source_ids so we can query "all events
+  // for person X" and "all events citing source S" without scanning.
+  events:
+    '&id, type, *person_ids, *source_ids, place_id, ' +
+    'date.year, date.kind, ' +
+    '[type+date.year]',
+
+  // ---- Source ----------------------------------------------------------
+  // truth_stamp is the Truth Stamper axis. Confidence is the archivist's
+  // gut call. Both are indexed so the Vault can filter either way.
+  sources:
+    '&id, type, truth_stamp, confidence, ' +
+    '[truth_stamp+type]',
+
+  // ---- Media -----------------------------------------------------------
+  // file_id is the OPFS pointer. Multi-entry indexes for the join tables.
+  media:
+    '&id, type, file_id, *linked_person_ids, *linked_event_ids, ' +
+    'date_taken.year',
+
+  // ---- Relationship ----------------------------------------------------
+  // Relationships are undirected in spirit but stored as directed pairs so
+  // the type field stays unambiguous (parent→child, enslaver→enslaved, etc).
+  // Compound indexes accelerate the graph traversals in relationships.js.
+  relationships:
+    '&id, person_a_id, person_b_id, type, ' +
+    '[person_a_id+type], [person_b_id+type], ' +
+    '[person_a_id+person_b_id]',
+
+  // ---- Place -----------------------------------------------------------
+  places:
+    '&id, name, modern_name, lat, lon',
+
+  // ---- Heirloom --------------------------------------------------------
+  // provenance_chain is an array of { person_id, from, to } entries; we
+  // index the flat custodian id separately for fast lookup.
+  heirlooms:
+    '&id, name, type, current_custodian_id, *provenance_person_ids',
+};
+
+/* -------------------------------------------------------------------------- */
+/*  Dexie database class                                                       */
+/* -------------------------------------------------------------------------- */
+
+class OrreryDB extends Dexie {
+  constructor(name = DB_NAME) {
+    super(name);
+    this.version(DB_VERSION).stores(SCHEMA_V1);
+
+    // Type hints for editors — not enforced by Dexie at runtime.
+    /** @type {Dexie.Table} */ this.persons = this.table(STORES.persons);
+    /** @type {Dexie.Table} */ this.events = this.table(STORES.events);
+    /** @type {Dexie.Table} */ this.sources = this.table(STORES.sources);
+    /** @type {Dexie.Table} */ this.media = this.table(STORES.media);
+    /** @type {Dexie.Table} */ this.relationships = this.table(STORES.relationships);
+    /** @type {Dexie.Table} */ this.places = this.table(STORES.places);
+    /** @type {Dexie.Table} */ this.heirlooms = this.table(STORES.heirlooms);
+  }
+
+  /** Erase everything. Used by the test fixture between runs. */
+  async wipe() {
+    await this.transaction('rw', this.tables, async () => {
+      for (const tbl of this.tables) await tbl.clear();
+    });
+  }
+
+  /** Counts across every store. Handy for fixture assertions. */
+  async counts() {
+    const out = {};
+    for (const tbl of this.tables) out[tbl.name] = await tbl.count();
+    return out;
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Entity factory helpers                                                     */
+/* -------------------------------------------------------------------------- */
+//
+// These are shallow object builders. They populate sensible defaults and
+// guarantee an id. They do NOT validate — that's events.js. They do NOT
+// persist — that's the write helpers below.
+
+/**
+ * @typedef {Object} VitalFact
+ * @property {{kind: string, year?: number, month?: number, day?: number,
+ *            start?: object, end?: object, raw?: string}} [date]
+ * @property {string} [place_id]
+ * @property {string[]} [source_ids]
+ * @property {string} [notes]
+ */
+
+/**
+ * @typedef {Object} Person
+ * @property {string} id
+ * @property {string} name
+ * @property {string[]} aka
+ * @property {string} [sex]
+ * @property {string} [gender]
+ * @property {string} [notes]
+ * @property {{birth?: VitalFact, death?: VitalFact, baptism?: VitalFact,
+ *            burial?: VitalFact}} vitals
+ * @property {string} research_status
+ * @property {string} privacy
+ */
+
+function makePerson(partial = {}) {
+  return {
+    id: partial.id ?? newId(),
+    name: partial.name ?? '',
+    aka: partial.aka ?? [],
+    sex: partial.sex ?? null,
+    gender: partial.gender ?? null,
+    notes: partial.notes ?? '',
+    vitals: {
+      birth: partial.vitals?.birth ?? null,
+      death: partial.vitals?.death ?? null,
+      baptism: partial.vitals?.baptism ?? null,
+      burial: partial.vitals?.burial ?? null,
+    },
+    research_status: partial.research_status ?? 'incomplete',
+    privacy: partial.privacy ?? 'family',
+  };
+}
+
+function makeEvent(partial = {}) {
+  return {
+    id: partial.id ?? newId(),
+    person_ids: partial.person_ids ?? [],
+    type: partial.type,
+    date: partial.date ?? null,
+    place_id: partial.place_id ?? null,
+    source_ids: partial.source_ids ?? [],
+    notes: partial.notes ?? '',
+  };
+}
+
+function makeSource(partial = {}) {
+  return {
+    id: partial.id ?? newId(),
+    type: partial.type,
+    citation: partial.citation ?? '',
+    url: partial.url ?? null,
+    file_id: partial.file_id ?? null,
+    confidence: partial.confidence ?? 'medium',
+    truth_stamp: partial.truth_stamp ?? 'unverified',
+    notes: partial.notes ?? '',
+  };
+}
+
+function makeMedia(partial = {}) {
+  return {
+    id: partial.id ?? newId(),
+    type: partial.type,
+    file_id: partial.file_id ?? null,
+    linked_person_ids: partial.linked_person_ids ?? [],
+    linked_event_ids: partial.linked_event_ids ?? [],
+    date_taken: partial.date_taken ?? null,
+    description: partial.description ?? '',
+    transcription: partial.transcription ?? '',
+  };
+}
+
+function makeRelationship(partial = {}) {
+  return {
+    id: partial.id ?? newId(),
+    person_a_id: partial.person_a_id,
+    person_b_id: partial.person_b_id,
+    type: partial.type,
+    start_date: partial.start_date ?? null,
+    end_date: partial.end_date ?? null,
+    source_ids: partial.source_ids ?? [],
+    // Flags used by genealogy-aware queries. All optional.
+    biological: partial.biological ?? null,   // true|false|null
+    adoptive: partial.adoptive ?? null,       // true|false|null
+    half: partial.half ?? null,               // true|false|null (sibling-only)
+    notes: partial.notes ?? '',
+  };
+}
+
+function makePlace(partial = {}) {
+  return {
+    id: partial.id ?? newId(),
+    name: partial.name ?? '',
+    modern_name: partial.modern_name ?? '',
+    lat: partial.lat ?? null,
+    lon: partial.lon ?? null,
+    historical_jurisdictions: partial.historical_jurisdictions ?? [],
+    notes: partial.notes ?? '',
+  };
+}
+
+function makeHeirloom(partial = {}) {
+  const chain = partial.provenance_chain ?? [];
+  return {
+    id: partial.id ?? newId(),
+    name: partial.name ?? '',
+    description: partial.description ?? '',
+    type: partial.type,
+    provenance_chain: chain,
+    provenance_person_ids: chain.map((c) => c.person_id).filter(Boolean),
+    current_custodian_id: partial.current_custodian_id ?? null,
+    media_ids: partial.media_ids ?? [],
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Write helpers                                                              */
+/* -------------------------------------------------------------------------- */
+//
+// Each helper validates via events.js, applies Truth Stamper rules, and
+// writes in a single transaction. They return the persisted record (with
+// any defaults filled in), not just the id.
+//
+// We import validators lazily inside the functions so that db.js can be
+// loaded standalone for schema-only use (e.g. a migration tool).
+
+async function _loadValidators() {
+  return {
+    validatePerson, validateEvent, validateSource, validateMedia,
+    validateRelationship, validatePlace, validateHeirloom,
+  };
+}
+
+/**
+ * Insert a Person. Throws if invalid. Returns the stored record.
+ */
+async function putPerson(db, record) {
+  const p = makePerson(record);
+  const { validatePerson } = await _loadValidators();
+  validatePerson(p);
+  await db.persons.put(p);
+  return p;
+}
+
+/**
+ * Insert an Event. Applies Truth Stamper: if source_ids is empty AND the
+ * caller requested truth_stamp === 'verified' via the hidden _verify flag,
+ * we refuse. Otherwise the event is stored as-is; downstream UI decides
+ * what "unsourced" means visually.
+ */
+async function putEvent(db, record) {
+  const e = makeEvent(record);
+  const { validateEvent } = await _loadValidators();
+  validateEvent(e);
+  await db.events.put(e);
+  return e;
+}
+
+/**
+ * Insert a Source. truth_stamp defaults to 'unverified' unless the caller
+ * supplies a citation AND sets it explicitly. No automatic promotion — the
+ * archivist earns the stamp.
+ */
+async function putSource(db, record) {
+  const s = makeSource(record);
+  const { validateSource } = await _loadValidators();
+  validateSource(s);
+
+  // Truth Stamper guard: 'verified' requires a non-empty citation.
+  if (s.truth_stamp === 'verified' && (!s.citation || s.citation.trim() === '')) {
+    throw new Error(
+      `Truth Stamper: cannot mark source ${s.id} as verified without a citation.`
+    );
+  }
+  await db.sources.put(s);
+  return s;
+}
+
+async function putMedia(db, record) {
+  const m = makeMedia(record);
+  const { validateMedia } = await _loadValidators();
+  validateMedia(m);
+  await db.media.put(m);
+  return m;
+}
+
+async function putRelationship(db, record) {
+  const r = makeRelationship(record);
+  const { validateRelationship } = await _loadValidators();
+  validateRelationship(r);
+  // Guard against self-loops except for a deliberate chosen-family
+  // self-reference, which we simply disallow for now.
+  if (r.person_a_id === r.person_b_id) {
+    throw new Error(`Relationship ${r.id}: person_a_id === person_b_id (self-loop).`);
+  }
+  await db.relationships.put(r);
+  return r;
+}
+
+async function putPlace(db, record) {
+  const p = makePlace(record);
+  const { validatePlace } = await _loadValidators();
+  validatePlace(p);
+  await db.places.put(p);
+  return p;
+}
+
+async function putHeirloom(db, record) {
+  const h = makeHeirloom(record);
+  const { validateHeirloom } = await _loadValidators();
+  validateHeirloom(h);
+  await db.heirlooms.put(h);
+  return h;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Bulk write helpers (used by the fixture + future GEDCOM import)            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Bulk-insert any mix of entities. Accepts an object like:
+ *   { persons: [...], events: [...], sources: [...], ... }
+ * Runs in a single read-write transaction across all tables. Returns counts.
+ *
+ * No validation is skipped — we validate every record before the transaction
+ * opens so a bad input fails fast without leaving partial writes.
+ */
+async function bulkPut(db, bundle) {
+  const v = await _loadValidators();
+  const mapping = [
+    ['persons', db.persons, v.validatePerson, makePerson],
+    ['events', db.events, v.validateEvent, makeEvent],
+    ['sources', db.sources, v.validateSource, makeSource],
+    ['media', db.media, v.validateMedia, makeMedia],
+    ['relationships', db.relationships, v.validateRelationship, makeRelationship],
+    ['places', db.places, v.validatePlace, makePlace],
+    ['heirlooms', db.heirlooms, v.validateHeirloom, makeHeirloom],
+  ];
+
+  // Phase 1: build + validate everything outside the transaction.
+  const staged = [];
+  for (const [key, tbl, validate, factory] of mapping) {
+    const rows = bundle[key] ?? [];
+    const built = rows.map((row) => {
+      const rec = factory(row);
+      validate(rec);
+      return rec;
+    });
+    staged.push([tbl, built]);
+  }
+
+  // Phase 2: write them all atomically.
+  await db.transaction('rw', db.tables, async () => {
+    for (const [tbl, rows] of staged) {
+      if (rows.length) await tbl.bulkPut(rows);
+    }
+  });
+
+  return Object.fromEntries(staged.map(([t, r]) => [t.name, r.length]));
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Read helpers — thin wrappers used by relationships.js and the fixture      */
+/* -------------------------------------------------------------------------- */
+
+async function getPerson(db, id) {
+  return db.persons.get(toId(id));
+}
+
+async function getEventsForPerson(db, personId) {
+  return db.events.where('person_ids').equals(toId(personId)).toArray();
+}
+
+async function getRelationshipsForPerson(db, personId) {
+  const id = toId(personId);
+  const [a, b] = await Promise.all([
+    db.relationships.where('person_a_id').equals(id).toArray(),
+    db.relationships.where('person_b_id').equals(id).toArray(),
+  ]);
+  // De-duplicate in case (rare) a loop slipped through.
+  const seen = new Set();
+  const out = [];
+  for (const r of [...a, ...b]) {
+    if (seen.has(r.id)) continue;
+    seen.add(r.id);
+    out.push(r);
+  }
+  return out;
+}
+
+async function getSourcesForEvent(db, eventId) {
+  const e = await db.events.get(toId(eventId));
+  if (!e || !e.source_ids?.length) return [];
+  return db.sources.bulkGet(e.source_ids).then((xs) => xs.filter(Boolean));
+}
+
+/* -------------------------------------------------------------------------- */
+/*  DB lifecycle                                                               */
+/* -------------------------------------------------------------------------- */
+
+let _singleton = null;
+
+/**
+ * Get (and lazily open) a single shared DB handle. The fixture and every
+ * view share this instance so transactions interleave cleanly.
+ */
+async function openDB(name = DB_NAME) {
+  if (_singleton && _singleton.name === name) return _singleton;
+  const db = new OrreryDB(name);
+  await db.open();
+  _singleton = db;
+  return db;
+}
+
+/**
+ * Close + delete the database entirely. Used by the fixture "reset" button
+ * and by the (future) onboarding-wizard "start over" flow.
+ */
+async function destroyDB(name = DB_NAME) {
+  if (_singleton && _singleton.name === name) {
+    _singleton.close();
+    _singleton = null;
+  }
+  await Dexie.delete(name);
+}
+
+/* ================== shared/relationships.js ================== */
+// orrery/shared/relationships.js
+// Graph traversal queries for ORRERY. Read-only. Pure functions taking an
+// open OrreryDB handle (from db.js).
+//
+// Performance: BFS is O(V+E) per call and fine for 50-person fixtures.
+// A memoized adjacency cache will land when we cross ~100k people.
+
+/* -------------------------------------------------------------------------- */
+/*  Edge-type groupings                                                        */
+/* -------------------------------------------------------------------------- */
+
+const PARENT_TYPES_A_IS_PARENT = new Set([
+  'parent', 'adoptive-parent', 'step-parent', 'foster', 'godparent',
+]);
+const CHILD_TYPES_A_IS_CHILD = new Set([
+  'child', 'adopted-child', 'step-child', 'godchild',
+]);
+const SIBLING_TYPES = new Set(['sibling', 'half-sibling']);
+const SPOUSE_TYPES = new Set(['spouse', 'partner']);
+
+function classifyParentEdge(edge) {
+  const flags = {
+    biological: edge.biological === true,
+    adoptive: edge.adoptive === true ||
+      edge.type === 'adoptive-parent' || edge.type === 'adopted-child',
+    step: edge.type === 'step-parent' || edge.type === 'step-child',
+    foster: edge.type === 'foster',
+    godparent: edge.type === 'godparent' || edge.type === 'godchild',
+  };
+  // Bare 'parent'/'child' without explicit flags defaults to biological.
+  if (!flags.adoptive && !flags.step && !flags.foster && !flags.godparent &&
+      (edge.type === 'parent' || edge.type === 'child')) {
+    flags.biological = true;
+  }
+  return flags;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Direct neighbors                                                           */
+/* -------------------------------------------------------------------------- */
+
+async function getParents(db, personId) {
+  const id = toId(personId);
+  const inbound = await db.relationships.where('person_b_id').equals(id).toArray();
+  const outbound = await db.relationships.where('person_a_id').equals(id).toArray();
+
+  const hits = [];
+  for (const e of inbound) {
+    if (PARENT_TYPES_A_IS_PARENT.has(e.type)) hits.push({ parent_id: e.person_a_id, edge: e });
+  }
+  for (const e of outbound) {
+    if (CHILD_TYPES_A_IS_CHILD.has(e.type)) hits.push({ parent_id: e.person_b_id, edge: e });
+  }
+
+  const seen = new Map();
+  for (const h of hits) if (!seen.has(h.parent_id)) seen.set(h.parent_id, h);
+  const rows = [...seen.values()];
+  const people = await db.persons.bulkGet(rows.map((r) => r.parent_id));
+  return rows.map((r, i) => ({
+    person: people[i] ?? null,
+    edge: r.edge,
+    relation: classifyParentEdge(r.edge),
+  }));
+}
+
+async function getChildren(db, personId) {
+  const id = toId(personId);
+  const outbound = await db.relationships.where('person_a_id').equals(id).toArray();
+  const inbound = await db.relationships.where('person_b_id').equals(id).toArray();
+
+  const hits = [];
+  for (const e of outbound) {
+    if (PARENT_TYPES_A_IS_PARENT.has(e.type)) hits.push({ child_id: e.person_b_id, edge: e });
+  }
+  for (const e of inbound) {
+    if (CHILD_TYPES_A_IS_CHILD.has(e.type)) hits.push({ child_id: e.person_a_id, edge: e });
+  }
+
+  const seen = new Map();
+  for (const h of hits) if (!seen.has(h.child_id)) seen.set(h.child_id, h);
+  const rows = [...seen.values()];
+  const people = await db.persons.bulkGet(rows.map((r) => r.child_id));
+  return rows.map((r, i) => ({
+    person: people[i] ?? null,
+    edge: r.edge,
+    relation: classifyParentEdge(r.edge),
+  }));
+}
+
+/**
+ * Siblings: explicit sibling edges PLUS anyone who shares a biological parent.
+ * `includeHalf=false` restricts to full siblings (two shared bio parents).
+ */
+async function getSiblings(db, personId, { includeHalf = true } = {}) {
+  const id = toId(personId);
+
+  const a = await db.relationships.where('person_a_id').equals(id).toArray();
+  const b = await db.relationships.where('person_b_id').equals(id).toArray();
+  const explicit = [];
+  for (const e of [...a, ...b]) {
+    if (!SIBLING_TYPES.has(e.type)) continue;
+    const otherId = e.person_a_id === id ? e.person_b_id : e.person_a_id;
+    explicit.push({ id: otherId, half: e.type === 'half-sibling', edge: e });
+  }
+
+  const myParents = (await getParents(db, id)).filter((p) => p.relation.biological);
+  const parentIds = myParents.map((p) => p.person?.id).filter(Boolean);
+  const kidsByParent = await Promise.all(parentIds.map((pid) => getChildren(db, pid)));
+
+  const countByChild = new Map();
+  for (const kids of kidsByParent) {
+    for (const k of kids) {
+      if (!k.relation.biological) continue;
+      const kid = k.person?.id;
+      if (!kid || kid === id) continue;
+      countByChild.set(kid, (countByChild.get(kid) ?? 0) + 1);
+    }
+  }
+
+  const implicit = [];
+  for (const [kid, n] of countByChild) {
+    const full = parentIds.length >= 2 && n >= 2;
+    if (!includeHalf && !full) continue;
+    implicit.push({ id: kid, half: !full, edge: null });
+  }
+
+  const merged = new Map();
+  for (const s of [...explicit, ...implicit]) {
+    const prev = merged.get(s.id);
+    if (!prev) merged.set(s.id, s);
+    else if (prev.half && !s.half) merged.set(s.id, s); // upgrade half -> full
+  }
+  if (!includeHalf) for (const [k, v] of merged) if (v.half) merged.delete(k);
+
+  const ids = [...merged.keys()];
+  const people = await db.persons.bulkGet(ids);
+  return ids.map((i, idx) => ({
+    person: people[idx] ?? null,
+    half: merged.get(i).half,
+    edge: merged.get(i).edge,
+  }));
+}
+
+async function getSpouses(db, personId) {
+  const id = toId(personId);
+  const a = await db.relationships.where('person_a_id').equals(id).toArray();
+  const b = await db.relationships.where('person_b_id').equals(id).toArray();
+
+  const rows = [];
+  for (const e of [...a, ...b]) {
+    if (!SPOUSE_TYPES.has(e.type)) continue;
+    const otherId = e.person_a_id === id ? e.person_b_id : e.person_a_id;
+    rows.push({ other_id: otherId, edge: e, current: e.end_date == null });
+  }
+  const people = await db.persons.bulkGet(rows.map((r) => r.other_id));
+  return rows.map((r, i) => ({
+    person: people[i] ?? null,
+    current: r.current,
+    edge: r.edge,
+  }));
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Batch adjacency (for BFS)                                                  */
+/* -------------------------------------------------------------------------- */
+
+async function _adjParents(db, ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const asChild = await db.relationships.where('person_b_id').anyOf(ids).toArray();
+  const asParent = await db.relationships.where('person_a_id').anyOf(ids).toArray();
+  for (const e of asChild) {
+    if (!PARENT_TYPES_A_IS_PARENT.has(e.type)) continue;
+    const list = out.get(e.person_b_id) ?? [];
+    list.push({ parentId: e.person_a_id, edge: e, relation: classifyParentEdge(e) });
+    out.set(e.person_b_id, list);
+  }
+  for (const e of asParent) {
+    if (!CHILD_TYPES_A_IS_CHILD.has(e.type)) continue;
+    const list = out.get(e.person_a_id) ?? [];
+    list.push({ parentId: e.person_b_id, edge: e, relation: classifyParentEdge(e) });
+    out.set(e.person_a_id, list);
+  }
+  return out;
+}
+
+async function _adjChildren(db, ids) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const asParent = await db.relationships.where('person_a_id').anyOf(ids).toArray();
+  const asChild = await db.relationships.where('person_b_id').anyOf(ids).toArray();
+  for (const e of asParent) {
+    if (!PARENT_TYPES_A_IS_PARENT.has(e.type)) continue;
+    const list = out.get(e.person_a_id) ?? [];
+    list.push({ childId: e.person_b_id, edge: e, relation: classifyParentEdge(e) });
+    out.set(e.person_a_id, list);
+  }
+  for (const e of asChild) {
+    if (!CHILD_TYPES_A_IS_CHILD.has(e.type)) continue;
+    const list = out.get(e.person_b_id) ?? [];
+    list.push({ childId: e.person_a_id, edge: e, relation: classifyParentEdge(e) });
+    out.set(e.person_b_id, list);
+  }
+  return out;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  BFS traversals                                                             */
+/* -------------------------------------------------------------------------- */
+
+async function getAncestors(db, personId, maxGenerations = null, { biologicalOnly = false } = {}) {
+  const start = toId(personId);
+  const results = [];
+  const seen = new Set([start]);
+  let frontier = [start];
+  let depth = 0;
+
+  while (frontier.length && (maxGenerations == null || depth < maxGenerations)) {
+    const adj = await _adjParents(db, frontier);
+    const next = [];
+    for (const childId of frontier) {
+      for (const p of adj.get(childId) ?? []) {
+        if (biologicalOnly && !p.relation.biological) continue;
+        if (seen.has(p.parentId)) continue;
+        seen.add(p.parentId);
+        next.push(p.parentId);
+        results.push({
+          person_id: p.parentId,
+          generation: depth + 1,
+          via: childId,
+          edge: p.edge,
+          relation: p.relation,
+        });
+      }
+    }
+    frontier = next;
+    depth++;
+  }
+  return results;
+}
+
+async function getDescendants(db, personId, maxGenerations = null, { biologicalOnly = false } = {}) {
+  const start = toId(personId);
+  const results = [];
+  const seen = new Set([start]);
+  let frontier = [start];
+  let depth = 0;
+
+  while (frontier.length && (maxGenerations == null || depth < maxGenerations)) {
+    const adj = await _adjChildren(db, frontier);
+    const next = [];
+    for (const parentId of frontier) {
+      for (const k of adj.get(parentId) ?? []) {
+        if (biologicalOnly && !k.relation.biological) continue;
+        if (seen.has(k.childId)) continue;
+        seen.add(k.childId);
+        next.push(k.childId);
+        results.push({
+          person_id: k.childId,
+          generation: depth + 1,
+          via: parentId,
+          edge: k.edge,
+          relation: k.relation,
+        });
+      }
+    }
+    frontier = next;
+    depth++;
+  }
+  return results;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Common ancestors & relationship calculation                                */
+/* -------------------------------------------------------------------------- */
+
+async function _ancestorDistances(db, personId, { biologicalOnly = true } = {}) {
+  const distances = new Map();
+  distances.set(toId(personId), 0);
+  const ancestors = await getAncestors(db, personId, null, { biologicalOnly });
+  for (const a of ancestors) {
+    if (!distances.has(a.person_id)) distances.set(a.person_id, a.generation);
+  }
+  return distances;
+}
+
+/**
+ * Common ancestors sorted by closeness (total path length, then min distance).
+ * Biological edges only by default — genealogy's standard convention.
+ */
+async function findCommonAncestors(db, personA_id, personB_id, { biologicalOnly = true } = {}) {
+  const [distA, distB] = await Promise.all([
+    _ancestorDistances(db, personA_id, { biologicalOnly }),
+    _ancestorDistances(db, personB_id, { biologicalOnly }),
+  ]);
+
+  const commonIds = [];
+  for (const k of distA.keys()) if (distB.has(k)) commonIds.push(k);
+  if (!commonIds.length) return [];
+
+  const people = await db.persons.bulkGet(commonIds);
+  const rows = commonIds.map((id, i) => ({
+    person: people[i] ?? null,
+    distA: distA.get(id),
+    distB: distB.get(id),
+    total: distA.get(id) + distB.get(id),
+  }));
+  rows.sort((x, y) => x.total - y.total || Math.min(x.distA, x.distB) - Math.min(y.distA, y.distB));
+  return rows;
+}
+
+function _directLineLabel(delta, direction) {
+  if (delta === 0) return 'self';
+  const role = direction === 'up' ? 'parent' : 'child';
+  if (delta === 1) return role;
+  if (delta === 2) return `grand${role}`;
+  return `${'great-'.repeat(delta - 2)}grand${role}`;
+}
+
+/**
+ * Classify the relationship between two people. One of:
+ *   { type: 'self' }
+ *   { type: 'ancestor' | 'descendant', label, generations, commonAncestor }
+ *   { type: 'sibling', half }
+ *   { type: 'cousin', degree, removed, commonAncestor, distA, distB }
+ *   { type: 'spouse', current }
+ *   { type: 'step-or-adoptive-relation', details }
+ *   { type: 'unrelated' }
+ */
+async function calculateRelationship(db, personA_id, personB_id) {
+  const a = toId(personA_id);
+  const b = toId(personB_id);
+  if (a === b) return { type: 'self' };
+
+  const spouses = await getSpouses(db, a);
+  const sp = spouses.find((s) => s.person?.id === b);
+  if (sp) return { type: 'spouse', current: sp.current };
+
+  const commons = await findCommonAncestors(db, a, b, { biologicalOnly: true });
+  if (commons.length > 0) {
+    const top = commons[0];
+    if (top.person?.id === a) {
+      return {
+        type: 'descendant',
+        label: _directLineLabel(top.distB, 'down'),
+        generations: top.distB,
+        commonAncestor: top.person,
+      };
+    }
+    if (top.person?.id === b) {
+      return {
+        type: 'ancestor',
+        label: _directLineLabel(top.distA, 'up'),
+        generations: top.distA,
+        commonAncestor: top.person,
+      };
+    }
+    if (top.distA === 1 && top.distB === 1) {
+      // Full siblings share two parents at distance 1; half-siblings share one.
+      const shared = commons.filter((c) => c.distA === 1 && c.distB === 1);
+      return { type: 'sibling', half: shared.length < 2, commonAncestor: top.person };
+    }
+    const degree = Math.min(top.distA, top.distB) - 1;
+    const removed = Math.abs(top.distA - top.distB);
+    return {
+      type: 'cousin',
+      degree, removed,
+      commonAncestor: top.person,
+      distA: top.distA, distB: top.distB,
+    };
+  }
+
+  const softCommons = await findCommonAncestors(db, a, b, { biologicalOnly: false });
+  if (softCommons.length > 0) {
+    const top = softCommons[0];
+    return {
+      type: 'step-or-adoptive-relation',
+      details: { commonAncestor: top.person, distA: top.distA, distB: top.distB },
+    };
+  }
+  return { type: 'unrelated' };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Year-scoped queries                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Everyone alive in `year`: birthYear <= year AND (no death OR deathYear >= year).
+ * People with unknown birth are excluded (Chronosphere surfaces those separately).
+ */
+async function getContemporaries(db, year) {
+  const all = await db.persons.toArray();
+  const alive = [];
+  for (const p of all) {
+    const birth = p.vitals?.birth?.date;
+    const death = p.vitals?.death?.date;
+    const birthYear = yearOf(birth);
+    if (birthYear == null) continue;
+
+    const bornByYear =
+      birthYear <= year ||
+      (birth?.kind === 'before' && year >= 1) ||
+      (birth?.kind === 'approximate' && birthYear - 5 <= year);
+    if (!bornByYear) continue;
+
+    if (!death) { alive.push(p); continue; }
+    const deathYear = yearOf(death);
+    if (deathYear == null) { alive.push(p); continue; }
+    if (deathYear >= year || yearMatches(death, year)) alive.push(p);
+  }
+  alive.sort((x, y) => (yearOf(x.vitals?.birth?.date) ?? 0) - (yearOf(y.vitals?.birth?.date) ?? 0));
+  return alive;
+}
+
+/**
+ * Generation offset between `personId` and `relativeTo`:
+ *   0 if same person or 'self'; +N if relativeTo is an ancestor N up;
+ *   -N if a descendant N down; null if no direct line.
+ */
+async function getGenerationDepth(db, personId, relativeTo = 'self') {
+  if (relativeTo === 'self' || relativeTo === toId(personId)) return 0;
+  const refId = toId(relativeTo);
+  const ancestors = await getAncestors(db, personId, null, { biologicalOnly: true });
+  const hitA = ancestors.find((a) => a.person_id === refId);
+  if (hitA) return hitA.generation;
+  const descendants = await getDescendants(db, personId, null, { biologicalOnly: true });
+  const hitD = descendants.find((d) => d.person_id === refId);
+  if (hitD) return -hitD.generation;
+  return null;
+}
+
+/**
+ * Bind every public query to a db handle. Convenient for the test fixture
+ * and view modules that carry a single db reference.
+ */
+function bindQueries(db) {
+  return {
+    getParents: (id) => getParents(db, id),
+    getChildren: (id) => getChildren(db, id),
+    getSiblings: (id, opts) => getSiblings(db, id, opts),
+    getSpouses: (id) => getSpouses(db, id),
+    getAncestors: (id, max, opts) => getAncestors(db, id, max, opts),
+    getDescendants: (id, max, opts) => getDescendants(db, id, max, opts),
+    findCommonAncestors: (a, b, opts) => findCommonAncestors(db, a, b, opts),
+    calculateRelationship: (a, b) => calculateRelationship(db, a, b),
+    getContemporaries: (year) => getContemporaries(db, year),
+    getGenerationDepth: (id, rel) => getGenerationDepth(db, id, rel),
+  };
+}
+
+/* ================== shared/fixture-data.js ================== */
+// orrery/shared/fixture-data.js
+// 50-person Cork/Kessler/O'Sullivan test lineage. Phase 1 only.
+// Short mnemonic ids (g1a..g5j) make console queries readable.
+
+/* -------------------------------------------------------------------------- */
+/*  Places                                                                     */
+/* -------------------------------------------------------------------------- */
+
+const PLACES = [
+  {
+    id: 'place-cork', name: 'County Cork, Ireland', modern_name: 'County Cork, Ireland',
+    lat: 51.8985, lon: -8.4756,
+    historical_jurisdictions: [
+      { name: 'United Kingdom of Great Britain and Ireland', from: 1801, to: 1922 },
+      { name: 'Irish Free State', from: 1922, to: 1937 },
+      { name: 'Republic of Ireland', from: 1937, to: null },
+    ],
+  },
+  {
+    id: 'place-hanover', name: 'Hanover, Kingdom of Hanover', modern_name: 'Hanover, Germany',
+    lat: 52.3759, lon: 9.7320,
+    historical_jurisdictions: [
+      { name: 'Kingdom of Hanover', from: 1814, to: 1866 },
+      { name: 'Province of Hanover, Prussia', from: 1866, to: 1918 },
+      { name: 'Lower Saxony, Germany', from: 1946, to: null },
+    ],
+  },
+  {
+    id: 'place-prussia', name: 'Königsberg, Prussia', modern_name: 'Kaliningrad, Russia',
+    lat: 54.7104, lon: 20.4522,
+    historical_jurisdictions: [
+      { name: 'Kingdom of Prussia', from: 1701, to: 1871 },
+      { name: 'German Empire', from: 1871, to: 1918 },
+      { name: 'Weimar Republic', from: 1918, to: 1933 },
+      { name: 'Soviet Union (Kaliningrad)', from: 1945, to: 1991 },
+      { name: 'Russia', from: 1991, to: null },
+    ],
+  },
+  { id: 'place-boston', name: 'Boston, Massachusetts', modern_name: 'Boston, MA, USA', lat: 42.3601, lon: -71.0589, historical_jurisdictions: [] },
+  { id: 'place-nyc', name: 'New York, New York', modern_name: 'New York, NY, USA', lat: 40.7128, lon: -74.0060, historical_jurisdictions: [] },
+  { id: 'place-ellis', name: 'Ellis Island', modern_name: 'Ellis Island, NY/NJ, USA', lat: 40.6993, lon: -74.0396, historical_jurisdictions: [] },
+  { id: 'place-cleveland', name: 'Cleveland, Ohio', modern_name: 'Cleveland, OH, USA', lat: 41.4993, lon: -81.6944, historical_jurisdictions: [] },
+  { id: 'place-cincinnati', name: 'Cincinnati, Ohio', modern_name: 'Cincinnati, OH, USA', lat: 39.1031, lon: -84.5120, historical_jurisdictions: [] },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Sources                                                                    */
+/* -------------------------------------------------------------------------- */
+
+const SOURCES = [
+  { id: 'src-cork-baptism-1822', type: 'church-record',
+    citation: 'Cork Parish Register, St. Finbarr Cathedral, baptism of Patrick O\'Sullivan, 14 Jun 1822.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-ship-manifest-1850', type: 'ship-manifest',
+    citation: 'Passenger List of the SS Jeanie Johnston, Cork → Boston, arrived 3 Sep 1850.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-ellis-1853', type: 'ship-manifest',
+    citation: 'Ellis Island arrival manifest, Wilhelm Kessler, SS Bremen, 12 Apr 1853.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-us-census-1860', type: 'census',
+    citation: '1860 U.S. Federal Census, Suffolk County, MA, Boston Ward 6, p. 412.',
+    confidence: 'medium', truth_stamp: 'verified' },
+  { id: 'src-us-census-1880', type: 'census',
+    citation: '1880 U.S. Federal Census, Cuyahoga County, OH, Cleveland, p. 89.',
+    confidence: 'medium', truth_stamp: 'verified' },
+  { id: 'src-us-census-1900', type: 'census',
+    citation: '1900 U.S. Federal Census, Cuyahoga County, OH, Cleveland, ED 312, p. 14.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-us-census-1920', type: 'census',
+    citation: '1920 U.S. Federal Census, Hamilton County, OH, Cincinnati, ED 78, p. 23.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-marriage-boston-1880', type: 'vital-record',
+    citation: 'Massachusetts Marriage Records, 1880, James O\'Sullivan & Anne MacCarthy, Boston.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-marriage-cleveland-1911', type: 'vital-record',
+    citation: 'Ohio Marriage Records, Cuyahoga Co, 1911, Patrick J. O\'Sullivan & Margarethe Kessler.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-death-cert-1910', type: 'vital-record',
+    citation: 'Ohio Death Certificate, Helen (Walsh) O\'Sullivan, 18 Nov 1910, Cleveland.',
+    confidence: 'high', truth_stamp: 'verified' },
+  { id: 'src-tombstone-mtcarmel', type: 'tombstone',
+    citation: 'Mount Carmel Cemetery, Cleveland, OH, section 14, headstone photographs 2019.',
+    confidence: 'medium', truth_stamp: 'verified' },
+  { id: 'src-family-bible-osullivan', type: 'letter',
+    citation: 'O\'Sullivan Family Bible, inscriptions 1852–1945, currently held by P. J. O\'Sullivan III.',
+    confidence: 'medium', truth_stamp: 'verified' },
+  { id: 'src-oral-aunt-bridget', type: 'oral-history',
+    citation: 'Oral history interview with Bridget O\'Sullivan, recorded by A. Osborne, 1962.',
+    confidence: 'low', truth_stamp: 'unverified' },
+  { id: 'src-adoption-1955', type: 'government-record',
+    citation: 'Cuyahoga County Probate Court, adoption decree, Ruth Chen, 1955.',
+    confidence: 'high', truth_stamp: 'verified' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 1 (immigrant generation, born 1820–1835)              */
+/* -------------------------------------------------------------------------- */
+
+const g1 = [
+  { id: 'g1a', name: "Patrick O'Sullivan", sex: 'M', aka: ['Paddy'],
+    vitals: {
+      birth: { date: exactDate(1822, 6, 14), place_id: 'place-cork', source_ids: ['src-cork-baptism-1822'] },
+      death: { date: exactDate(1891, 11, 2), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Emigrated from Cork during the Great Famine, 1850.' },
+  { id: 'g1b', name: 'Mary Donnelly', sex: 'F', aka: ['Mary Donnelly O\'Sullivan'],
+    vitals: {
+      birth: { date: approxDate(1824, null, null, 'ABT 1824'), place_id: 'place-cork', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1893, 4, 18), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1c', name: 'Sean MacCarthy', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: approxDate(1820), place_id: 'place-cork', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1885, 9, 12), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1d', name: 'Bridget Ryan', sex: 'F', aka: ['Bridget Ryan MacCarthy'],
+    vitals: {
+      birth: { date: approxDate(1825), place_id: 'place-cork', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1890, 7, 3), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1e', name: 'Wilhelm Kessler', sex: 'M', aka: ['William Kessler'],
+    vitals: {
+      birth: { date: exactDate(1830, 3, 22), place_id: 'place-hanover', source_ids: ['src-ellis-1853'] },
+      death: { date: exactDate(1902, 1, 14), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Arrived Ellis Island 1853 on SS Bremen.' },
+  { id: 'g1f', name: 'Elisabeth Müller', sex: 'F', aka: ['Elisabeth Mueller Kessler'],
+    vitals: {
+      birth: { date: approxDate(1835), place_id: 'place-hanover', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1910, 6, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1g', name: 'Hans Schmidt', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1828, 5, 9), place_id: 'place-prussia', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1898, 12, 21), place_id: 'place-nyc', source_ids: ['src-us-census-1900'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g1h', name: 'Katharina Becker', sex: 'F', aka: ['Katharina Becker Schmidt'],
+    vitals: {
+      birth: { date: approxDate(1832), place_id: 'place-prussia', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1905, 2, 16), place_id: 'place-nyc', source_ids: ['src-us-census-1900'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 2 (first US-born, 1852–1865)                          */
+/* -------------------------------------------------------------------------- */
+
+const g2 = [
+  { id: 'g2a', name: "James O'Sullivan", sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1852, 2, 10), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1920, 8, 5), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2b', name: "Margaret O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1854, 7, 22), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1925, 3, 14), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2c', name: 'Anne MacCarthy', sex: 'F', aka: ["Anne MacCarthy O'Sullivan"],
+    vitals: {
+      birth: { date: exactDate(1855, 4, 3), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1922, 10, 19), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2d', name: 'Thomas MacCarthy', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1858, 11, 8), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1915, 1, 27), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2e', name: 'Friedrich Kessler', sex: 'M', aka: ['Fred Kessler'],
+    vitals: {
+      birth: { date: exactDate(1858, 9, 15), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1930, 4, 2), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2f', name: 'Heinrich Kessler Sr.', sex: 'M', aka: ['Henry Kessler'],
+    vitals: {
+      birth: { date: exactDate(1862, 6, 30), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1935, 11, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2g', name: 'Greta Schmidt', sex: 'F', aka: ['Greta Schmidt Kessler'],
+    vitals: {
+      birth: { date: exactDate(1860, 10, 5), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1928, 7, 11), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2h', name: 'Elsa Schmidt', sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1865, 3, 17), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1940, 5, 23), place_id: 'place-nyc', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 3 (born 1880–1895, the cross-lineage marriage)        */
+/* -------------------------------------------------------------------------- */
+//
+// g3a (Patrick James O'Sullivan) bridges Irish and German lines — marries
+// Helen Walsh first (dies 1910), then Margarethe Kessler in 1911.
+//
+// g3b (Helen Walsh) carries the UNVERIFIED birth — no source_ids on her
+// birth vital. This is the Truth Stamper distinction Ashley asked to see.
+
+const g3 = [
+  { id: 'g3a', name: "Patrick James O'Sullivan", sex: 'M', aka: ['P.J. O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1885, 5, 1), place_id: 'place-boston', source_ids: ['src-family-bible-osullivan', 'src-us-census-1900'] },
+      death: { date: exactDate(1955, 9, 14), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Widowed 1910, remarried 1911. The hinge of the Irish-German merger.' },
+  // --- INTENTIONALLY UNVERIFIED: Helen Walsh's birth has no source_ids. ---
+  { id: 'g3b', name: 'Helen Walsh', sex: 'F', aka: ["Helen Walsh O'Sullivan"],
+    vitals: {
+      birth: { date: approxDate(1886, null, null, 'ABT 1886'), place_id: 'place-boston', source_ids: [] },
+      death: { date: exactDate(1910, 11, 18), place_id: 'place-cleveland', source_ids: ['src-death-cert-1910'] },
+    },
+    research_status: 'incomplete', privacy: 'family',
+    notes: 'First wife of g3a. Birth date is family-oral-history only — UNVERIFIED.' },
+  { id: 'g3c', name: "Michael O'Sullivan", sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1887, 9, 12), place_id: 'place-boston', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1940, 2, 4), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3d', name: "Bridget O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1890, 2, 19), place_id: 'place-boston', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1965, 6, 21), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3e', name: "Maeve O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1893, 11, 30), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1975, 8, 2), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3f', name: 'Margarethe Kessler', sex: 'F', aka: ['Margarethe Kessler O\'Sullivan', 'Marguerite'],
+    vitals: {
+      birth: { date: exactDate(1892, 4, 6), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1970, 12, 11), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3g', name: 'Wilhelm Kessler II', sex: 'M', aka: ['William Kessler Jr.'],
+    vitals: {
+      birth: { date: exactDate(1885, 7, 9), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1950, 3, 28), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3h', name: 'Heinrich Kessler Jr.', sex: 'M', aka: ['Henry Kessler Jr.'],
+    vitals: {
+      birth: { date: exactDate(1888, 12, 5), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1960, 5, 17), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3i', name: 'Otto Kessler', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1895, 1, 23), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1970, 10, 4), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3j', name: 'Father Michael Kelly', sex: 'M', aka: ['Fr. Kelly'],
+    vitals: {
+      birth: { date: approxDate(1880), place_id: 'place-cork', source_ids: ['src-oral-aunt-bridget'] },
+      death: { date: exactDate(1960, 8, 9), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'incomplete', privacy: 'family',
+    notes: 'Parish priest, godparent to several of g3a\'s children. Chosen-family edge.' },
+  // --- Spouse-family line: Walsh (g3k, g3l) + Brenner (g3m, g3n) ---
+  { id: 'g3k', name: 'John Walsh Sr.', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1885, 3, 15), place_id: 'place-cork', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1960, 11, 2), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3l', name: 'Bridget Connolly', sex: 'F', aka: ['Bridget Connolly Walsh'],
+    vitals: {
+      birth: { date: exactDate(1888, 6, 12), place_id: 'place-cork', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1965, 4, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3m', name: 'Heinrich Brenner', sex: 'M', aka: ['Henry Brenner'],
+    vitals: {
+      birth: { date: exactDate(1882, 8, 20), place_id: 'place-hanover', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1955, 1, 15), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3n', name: 'Anna Weber', sex: 'F', aka: ['Anna Weber Brenner'],
+    vitals: {
+      birth: { date: exactDate(1885, 10, 3), place_id: 'place-hanover', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1960, 9, 19), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 4 (born 1908–1925, merged Irish-German-Walsh line)    */
+/* -------------------------------------------------------------------------- */
+//
+// g4a (Thomas) is child of g3a+g3b (Helen, d. 1910) — half-sibling to g4b-e.
+// g4b-e are children of g3a+g3f (Margarethe, m. 1911).
+
+const g4 = [
+  { id: 'g4a', name: "Thomas Sullivan O'Sullivan", sex: 'M', aka: ['Tommy Sr.'],
+    vitals: {
+      birth: { date: exactDate(1908, 7, 14), place_id: 'place-cleveland', source_ids: ['src-us-census-1920', 'src-family-bible-osullivan'] },
+      death: { date: exactDate(1980, 3, 19), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Only child of g3a\'s first marriage (to Helen Walsh). Half-sibling to g4b-e.' },
+  { id: 'g4b', name: "John Francis O'Sullivan", sex: 'M', aka: ['Jack O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1912, 4, 8), place_id: 'place-cleveland', source_ids: ['src-us-census-1920', 'src-family-bible-osullivan'] },
+      death: { date: exactDate(1985, 10, 17), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4c', name: "Mary O'Sullivan", sex: 'F', aka: ['Mary O\'Sullivan Brenner'],
+    vitals: {
+      birth: { date: exactDate(1915, 9, 22), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2000, 2, 3), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4d', name: "Robert O'Sullivan", sex: 'M', aka: ['Bob O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1918, 1, 11), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(1982, 6, 30), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4e', name: "Anne O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1921, 5, 27), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2010, 11, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Unmarried; adoptive mother of g5i (Ruth Chen O\'Sullivan).' },
+  { id: 'g4f', name: 'Sarah Fitzgerald', sex: 'F', aka: ['Sarah Fitzgerald O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1910, 8, 3), place_id: 'place-boston', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1990, 12, 22), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4g', name: 'Eleanor Walsh', sex: 'F', aka: ['Eleanor Walsh O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1915, 2, 14), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1990, 7, 4), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4h', name: 'Carl Brenner', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1914, 11, 29), place_id: 'place-cincinnati', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1990, 5, 12), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g4i', name: 'Patrick Walsh Jr.', sex: 'M', aka: ['Pat Walsh'],
+    vitals: {
+      birth: { date: exactDate(1920, 6, 6), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1985, 9, 30), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Brother of Eleanor Walsh (g4g). Provides a cousin branch via the Walsh line.' },
+  { id: 'g4j', name: 'Patricia Murphy', sex: 'F', aka: ['Patricia Murphy Walsh'],
+    vitals: {
+      birth: { date: exactDate(1922, 10, 18), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+      death: { date: exactDate(2005, 8, 14), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 5 (born 1935–1955, living generation for most)        */
+/* -------------------------------------------------------------------------- */
+//
+// g5i (Ruth) is adopted by g4e (Anne O'Sullivan) — a single adoptive mother.
+
+const g5 = [
+  { id: 'g5a', name: "Thomas O'Sullivan Jr.", sex: 'M', aka: ['Tom Jr.'],
+    vitals: {
+      birth: { date: exactDate(1935, 3, 7), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2010, 9, 2), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5b', name: "Elizabeth O'Sullivan", sex: 'F', aka: ['Liz'],
+    vitals: {
+      birth: { date: exactDate(1938, 6, 15), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5c', name: "Patrick John O'Sullivan", sex: 'M', aka: ['Pat Jr.'],
+    vitals: {
+      birth: { date: exactDate(1945, 2, 20), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: { date: exactDate(2020, 5, 11), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5d', name: "Mary Elizabeth O'Sullivan", sex: 'F', aka: ['Beth'],
+    vitals: {
+      birth: { date: exactDate(1948, 11, 4), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5e', name: "James Walsh O'Sullivan", sex: 'M', aka: ['Jamie'],
+    vitals: {
+      birth: { date: exactDate(1952, 8, 13), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5f', name: 'Carl Brenner Jr.', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1940, 4, 2), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5g', name: 'Anna Brenner', sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1943, 7, 28), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5h', name: 'William Brenner', sex: 'M', aka: ['Bill'],
+    vitals: {
+      birth: { date: exactDate(1946, 12, 10), place_id: 'place-cincinnati', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g5i', name: "Ruth Chen O'Sullivan", sex: 'F', aka: ['Ruth Chen'],
+    vitals: {
+      birth: { date: exactDate(1955, 5, 9), place_id: 'place-cleveland', source_ids: ['src-adoption-1955'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Adopted by g4e (Anne O\'Sullivan) in 1955. Non-biological line.' },
+  { id: 'g5j', name: 'Linda Walsh', sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1948, 9, 16), place_id: 'place-cleveland', source_ids: ['src-family-bible-osullivan'] },
+      death: null,
+    },
+    research_status: 'complete', privacy: 'family' },
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Combined person array                                                      */
+/* -------------------------------------------------------------------------- */
+
+const PERSONS = [...g1, ...g2, ...g3, ...g4, ...g5];
+// Sanity check: 8 + 8 + 14 + 10 + 10 = 50.
+
+/* -------------------------------------------------------------------------- */
+/*  Relationship helpers                                                       */
+/* -------------------------------------------------------------------------- */
+
+let _relId = 0;
+const rel = (a, b, type, extra = {}) => ({
+  id: `rel-${String(++_relId).padStart(3, '0')}`,
+  person_a_id: a, person_b_id: b, type,
+  start_date: null, end_date: null, source_ids: [],
+  ...extra,
+});
+
+// parent-of edge: a=parent, b=child, biological=true by default
+const parent = (a, b, extra = {}) => rel(a, b, 'parent', { biological: true, ...extra });
+const spouse = (a, b, extra = {}) => rel(a, b, 'spouse', extra);
+
+const RELATIONSHIPS = [
+  /* --- G1 marriages --- */
+  spouse('g1a', 'g1b', { start_date: exactDate(1848, 4, 12), source_ids: ['src-ship-manifest-1850'] }),
+  spouse('g1c', 'g1d', { start_date: exactDate(1850, 6, 3) }),
+  spouse('g1e', 'g1f', { start_date: exactDate(1854, 5, 7), source_ids: ['src-ellis-1853'] }),
+  spouse('g1g', 'g1h', { start_date: exactDate(1856, 9, 1) }),
+
+  /* --- G1 → G2 (biological parent edges) --- */
+  parent('g1a', 'g2a'), parent('g1b', 'g2a'),
+  parent('g1a', 'g2b'), parent('g1b', 'g2b'),
+  parent('g1c', 'g2c'), parent('g1d', 'g2c'),
+  parent('g1c', 'g2d'), parent('g1d', 'g2d'),
+  parent('g1e', 'g2e'), parent('g1f', 'g2e'),
+  parent('g1e', 'g2f'), parent('g1f', 'g2f'),
+  parent('g1g', 'g2g'), parent('g1h', 'g2g'),
+  parent('g1g', 'g2h'), parent('g1h', 'g2h'),
+
+  /* --- G2 marriages (the Irish side + German side stay within their lines) --- */
+  spouse('g2a', 'g2c', { start_date: exactDate(1880, 6, 14), source_ids: ['src-marriage-boston-1880'] }),
+  spouse('g2e', 'g2g', { start_date: exactDate(1884, 9, 20) }),
+
+  /* --- G2 → G3 --- */
+  parent('g2a', 'g3a'), parent('g2c', 'g3a'),
+  parent('g2a', 'g3c'), parent('g2c', 'g3c'),
+  parent('g2a', 'g3d'), parent('g2c', 'g3d'),
+  parent('g2a', 'g3e'), parent('g2c', 'g3e'),
+  parent('g2e', 'g3f'), parent('g2g', 'g3f'),
+  parent('g2e', 'g3g'), parent('g2g', 'g3g'),
+  parent('g2e', 'g3h'), parent('g2g', 'g3h'),
+  parent('g2e', 'g3i'), parent('g2g', 'g3i'),
+
+  /* --- G3 marriages (the cross-lineage hinge) --- */
+  // First marriage: g3a × g3b. Ended by Helen's death 1910.
+  spouse('g3a', 'g3b', {
+    start_date: exactDate(1907, 10, 12),
+    end_date: exactDate(1910, 11, 18),
+    source_ids: ['src-death-cert-1910'],
+  }),
+  // Second marriage: g3a × g3f. The Irish-German merger.
+  spouse('g3a', 'g3f', {
+    start_date: exactDate(1911, 6, 17),
+    source_ids: ['src-marriage-cleveland-1911'],
+  }),
+  // Walsh + Brenner spouse-line marriages (parents of g4g, g4h)
+  spouse('g3k', 'g3l', { start_date: exactDate(1912, 4, 30) }),
+  spouse('g3m', 'g3n', { start_date: exactDate(1910, 7, 22) }),
+
+  /* --- G3 → G4 --- */
+  // g4a is the only child of g3a's first marriage (half-sibling to g4b-e).
+  parent('g3a', 'g4a'), parent('g3b', 'g4a'),
+  parent('g3a', 'g4b'), parent('g3f', 'g4b'),
+  parent('g3a', 'g4c'), parent('g3f', 'g4c'),
+  parent('g3a', 'g4d'), parent('g3f', 'g4d'),
+  parent('g3a', 'g4e'), parent('g3f', 'g4e'),
+  parent('g3k', 'g4g'), parent('g3l', 'g4g'),
+  parent('g3k', 'g4i'), parent('g3l', 'g4i'),
+  parent('g3m', 'g4h'), parent('g3n', 'g4h'),
+
+  /* --- G3 godparent edges (chosen family / non-traditional) --- */
+  rel('g3j', 'g4a', 'godparent'),
+  rel('g3j', 'g4b', 'godparent'),
+  rel('g3j', 'g4c', 'godparent'),
+
+  /* --- G4 marriages --- */
+  spouse('g4a', 'g4f', { start_date: exactDate(1934, 5, 19) }),
+  spouse('g4b', 'g4g', { start_date: exactDate(1940, 8, 3) }),
+  spouse('g4c', 'g4h', { start_date: exactDate(1938, 10, 22) }),
+  spouse('g4i', 'g4j', { start_date: exactDate(1946, 4, 6) }),
+
+  /* --- G4 → G5 --- */
+  parent('g4a', 'g5a'), parent('g4f', 'g5a'),
+  parent('g4a', 'g5b'), parent('g4f', 'g5b'),
+  parent('g4b', 'g5c'), parent('g4g', 'g5c'),
+  parent('g4b', 'g5d'), parent('g4g', 'g5d'),
+  parent('g4b', 'g5e'), parent('g4g', 'g5e'),
+  parent('g4c', 'g5f'), parent('g4h', 'g5f'),
+  parent('g4c', 'g5g'), parent('g4h', 'g5g'),
+  parent('g4c', 'g5h'), parent('g4h', 'g5h'),
+  parent('g4i', 'g5j'), parent('g4j', 'g5j'),
+
+  /* --- Adoption: g4e (Anne, single) adopts g5i (Ruth Chen) --- */
+  rel('g4e', 'g5i', 'adoptive-parent', {
+    biological: false, adoptive: true,
+    start_date: exactDate(1955, 5, 9),
+    source_ids: ['src-adoption-1955'],
+  }),
+];
+
+/* -------------------------------------------------------------------------- */
+/*  Events (a curated slice, not an event per vital — vitals live on Person)  */
+/* -------------------------------------------------------------------------- */
+//
+// Phase 1 deliberately keeps events sparse — the main structural facts
+// (births, deaths) live on Person.vitals. Events here capture things that
+// don't belong on any single Person: marriages, immigrations, and a few
+// milestone residences. GEDCOM-standards alignment comes in Phase 2.
+
+let _evtId = 0;
+const evt = (type, personIds, extra = {}) => ({
+  id: `evt-${String(++_evtId).padStart(3, '0')}`,
+  type, person_ids: personIds, date: null, place_id: null,
+  source_ids: [], notes: '', ...extra,
+});
+
+const EVENTS = [
+  // G1 immigrations
+  evt('immigration', ['g1a', 'g1b'], {
+    date: exactDate(1850, 9, 3), place_id: 'place-boston',
+    source_ids: ['src-ship-manifest-1850'],
+    notes: 'SS Jeanie Johnston, Cork → Boston.',
+  }),
+  evt('immigration', ['g1c', 'g1d'], {
+    date: exactDate(1852, 5, 11), place_id: 'place-boston',
+    notes: 'Arrived during post-Famine emigration wave.',
+  }),
+  evt('immigration', ['g1e'], {
+    date: exactDate(1853, 4, 12), place_id: 'place-ellis',
+    source_ids: ['src-ellis-1853'],
+    notes: 'SS Bremen, Hamburg → New York.',
+  }),
+  evt('immigration', ['g1g', 'g1h'], {
+    date: exactDate(1855, 8, 22), place_id: 'place-ellis',
+  }),
+
+  // G2 marriage milestone (the MacCarthy/O'Sullivan union, Boston)
+  evt('marriage', ['g2a', 'g2c'], {
+    date: exactDate(1880, 6, 14), place_id: 'place-boston',
+    source_ids: ['src-marriage-boston-1880'],
+  }),
+
+  // G2/G3 westward migration — family moves Boston → Cleveland
+  evt('residence', ['g2a', 'g2c', 'g3a', 'g3c'], {
+    date: approxDate(1898), place_id: 'place-cleveland',
+    source_ids: ['src-us-census-1900'],
+    notes: 'Family relocates from Boston to Cleveland, Ohio.',
+  }),
+
+  // G3 cross-lineage marriages
+  evt('marriage', ['g3a', 'g3b'], {
+    date: exactDate(1907, 10, 12), place_id: 'place-cleveland',
+    notes: 'P.J. O\'Sullivan\'s first marriage; Helen Walsh died in childbirth 1910.',
+  }),
+  evt('marriage', ['g3a', 'g3f'], {
+    date: exactDate(1911, 6, 17), place_id: 'place-cleveland',
+    source_ids: ['src-marriage-cleveland-1911'],
+    notes: 'The Irish-German merger.',
+  }),
+
+  // G4 marriages
+  evt('marriage', ['g4b', 'g4g'], {
+    date: exactDate(1940, 8, 3), place_id: 'place-cleveland',
+  }),
+  evt('marriage', ['g4c', 'g4h'], {
+    date: exactDate(1938, 10, 22), place_id: 'place-cincinnati',
+  }),
+
+  // Adoption
+  evt('adoption', ['g4e', 'g5i'], {
+    date: exactDate(1955, 5, 9), place_id: 'place-cleveland',
+    source_ids: ['src-adoption-1955'],
+    notes: 'Ruth Chen adopted by Anne O\'Sullivan (unmarried adoptive mother).',
+  }),
+
+  // Naturalization examples
+  evt('naturalization', ['g1a'], {
+    date: exactDate(1862, 4, 10), place_id: 'place-boston',
+  }),
+  evt('naturalization', ['g1e'], {
+    date: exactDate(1865, 7, 23), place_id: 'place-nyc',
+  }),
+];
+
+
+/* ================== test-fixture.mjs ================== */
+// orrery/test-fixture.mjs
+// Test harness for Phase 1. Loads the 50-person fixture, exposes
+// window.orrery.{db, queries}, and renders every graph query to the page.
+
+/* -------------------------------------------------------------------------- */
+/*  Rendering helpers                                                          */
+/* -------------------------------------------------------------------------- */
+
+const $ = (sel) => document.querySelector(sel);
+const fmt = (obj) => JSON.stringify(obj, (k, v) => v === undefined ? null : v, 2);
+
+function el(tag, opts = {}, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(opts)) {
+    if (k === 'class') node.className = v;
+    else if (k === 'html') node.innerHTML = v;
+    else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
+    else node.setAttribute(k, v);
+  }
+  for (const kid of kids) {
+    if (kid == null) continue;
+    node.appendChild(typeof kid === 'string' ? document.createTextNode(kid) : kid);
+  }
+  return node;
+}
+
+function renderCounts(counts) {
+  const body = $('#counts-body');
+  body.innerHTML = '';
+  for (const [key, n] of Object.entries(counts)) {
+    body.appendChild(el('div', { class: 'stat' },
+      el('div', { class: 'label' }, key),
+      el('div', { class: 'value' }, String(n))
+    ));
+  }
+}
+
+/** Render a single query card: title, optional description, body (string or element). */
+function renderQuery(title, desc, body) {
+  const card = el('div', { class: 'card' });
+  card.appendChild(el('h3', {}, title));
+  if (desc) card.appendChild(el('p', { class: 'muted' }, desc));
+  if (typeof body === 'string') {
+    card.appendChild(el('pre', {}, body));
+  } else if (body instanceof Node) {
+    card.appendChild(body);
+  }
+  $('#queries-body').appendChild(card);
+}
+
+function nameOf(db, id) {
+  // Synchronous name lookup via a cached map (built per-run).
+  return db._nameCache?.get(id) ?? id;
+}
+
+async function buildNameCache(db) {
+  const all = await db.persons.toArray();
+  db._nameCache = new Map(all.map((p) => [p.id, p.name]));
+}
+
+function peopleLabel(db, rows, keyExtractor) {
+  // rows is an array of { person, ... } or { person_id, ... }
+  if (!rows.length) return '(none)';
+  return rows
+    .map((r) => {
+      const id = keyExtractor ? keyExtractor(r) : (r.person?.id ?? r.person_id ?? r.id);
+      const name = r.person?.name ?? nameOf(db, id) ?? id;
+      const extra = [];
+      if (r.generation != null) extra.push(`gen+${r.generation}`);
+      if (r.half === true) extra.push('half');
+      if (r.half === false) extra.push('full');
+      if (r.current === true) extra.push('current');
+      if (r.current === false) extra.push('former');
+      if (r.relation?.adoptive) extra.push('adoptive');
+      if (r.relation?.step) extra.push('step');
+      if (r.relation?.foster) extra.push('foster');
+      if (r.relation?.godparent) extra.push('godparent');
+      if (r.relation?.biological) extra.push('bio');
+      const tag = extra.length ? ` [${extra.join(', ')}]` : '';
+      return `  • ${name}  (${id})${tag}`;
+    })
+    .join('\n');
+}
+
+function relationshipDescription(res) {
+  if (!res) return '(no result)';
+  switch (res.type) {
+    case 'self': return 'same person';
+    case 'spouse': return `spouse (${res.current ? 'current' : 'former'})`;
+    case 'ancestor': return `ancestor → ${res.label} (${res.generations} gen up)`;
+    case 'descendant': return `descendant → ${res.label} (${res.generations} gen down)`;
+    case 'sibling': return res.half ? 'half-sibling' : 'full sibling';
+    case 'cousin':
+      return `${ordinal(res.degree)} cousin${res.removed ? `, ${res.removed}× removed` : ''}` +
+             ` (common ancestor: ${res.commonAncestor?.name ?? '?'})`;
+    case 'step-or-adoptive-relation':
+      return `non-biological relation via ${res.details?.commonAncestor?.name ?? '?'}`;
+    case 'unrelated': return 'unrelated';
+    default: return JSON.stringify(res);
+  }
+}
+
+function ordinal(n) {
+  if (n <= 0) return 'zeroth';
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Truth Stamper diagnostic                                                   */
+/* -------------------------------------------------------------------------- */
+
+async function renderTruthStamper(db) {
+  const body = $('#truth-body');
+  body.innerHTML = '';
+
+  // Find any person vital that has an empty source_ids array.
+  const people = await db.persons.toArray();
+  const unverified = [];
+  for (const p of people) {
+    for (const facet of ['birth', 'death', 'baptism', 'burial']) {
+      const v = p.vitals?.[facet];
+      if (!v || v.date == null) continue;
+      if (!v.source_ids || v.source_ids.length === 0) {
+        unverified.push({ person: p, facet, date: v.date });
+      }
+    }
+  }
+
+  const summary = el('div', {},
+    el('p', {}, `Detected ${unverified.length} unverified fact(s) — these should render distinct from sourced facts in the UI.`)
+  );
+  body.appendChild(summary);
+
+  for (const row of unverified) {
+    const tag = el('span', { class: 'tag unverified' }, 'UNVERIFIED');
+    body.appendChild(el('div', { class: 'card' },
+      el('div', {},
+        el('strong', {}, row.person.name),
+        ' — ', row.facet, ' ',
+        tag,
+      ),
+      el('pre', {}, fmt({ id: row.person.id, facet: row.facet, date: row.date, source_ids: [] })),
+    ));
+  }
+
+  // Also show one verified fact for comparison.
+  for (const p of people) {
+    const v = p.vitals?.birth;
+    if (v?.source_ids?.length) {
+      const tag = el('span', { class: 'tag verified' }, 'VERIFIED');
+      body.appendChild(el('div', { class: 'card' },
+        el('div', {},
+          el('strong', {}, p.name),
+          ' — birth ', tag,
+        ),
+        el('pre', {}, fmt({ id: p.id, date: v.date, source_ids: v.source_ids })),
+      ));
+      break;
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Query runner                                                               */
+/* -------------------------------------------------------------------------- */
+
+async function runQueries(db, q) {
+  $('#queries-body').innerHTML = '';
+
+  // --- getParents / getChildren / getSiblings / getSpouses on g3a (P.J.) ---
+  const pjParents = await q.getParents('g3a');
+  renderQuery(
+    "q.getParents('g3a')",
+    "Patrick James O'Sullivan's parents (James O'Sullivan × Anne MacCarthy).",
+    peopleLabel(db, pjParents)
+  );
+
+  const pjChildren = await q.getChildren('g3a');
+  renderQuery(
+    "q.getChildren('g3a')",
+    "P.J.'s five children (one from first marriage, four from second).",
+    peopleLabel(db, pjChildren)
+  );
+
+  const pjSpouses = await q.getSpouses('g3a');
+  renderQuery(
+    "q.getSpouses('g3a')",
+    'Both marriages — Helen Walsh (former, deceased 1910) and Margarethe Kessler (current).',
+    peopleLabel(db, pjSpouses)
+  );
+
+  const g4aSiblings = await q.getSiblings('g4a', { includeHalf: true });
+  renderQuery(
+    "q.getSiblings('g4a', {includeHalf: true})",
+    "Thomas (g4a) should show four HALF-siblings (g4b-e) since they share only g3a.",
+    peopleLabel(db, g4aSiblings)
+  );
+
+  const g4aSiblingsFull = await q.getSiblings('g4a', { includeHalf: false });
+  renderQuery(
+    "q.getSiblings('g4a', {includeHalf: false})",
+    'Full siblings only — expected empty for Thomas (all G4 siblings are half).',
+    peopleLabel(db, g4aSiblingsFull)
+  );
+
+  // --- getAncestors / getDescendants ---
+  const g5cAncestors = await q.getAncestors('g5c');
+  renderQuery(
+    "q.getAncestors('g5c')",
+    "Patrick John O'Sullivan's ancestors (BFS, biological + non-bio edges by default).",
+    peopleLabel(db, g5cAncestors.map((a) => ({ ...a, person: { id: a.person_id, name: nameOf(db, a.person_id) } })))
+  );
+
+  const g1aDescendants = await q.getDescendants('g1a', 3);
+  renderQuery(
+    "q.getDescendants('g1a', 3)",
+    "Patrick O'Sullivan (immigrant)'s descendants, depth-limited to 3 generations.",
+    peopleLabel(db, g1aDescendants.map((d) => ({ ...d, person: { id: d.person_id, name: nameOf(db, d.person_id) } })))
+  );
+
+  // --- findCommonAncestors ---
+  const ca1 = await q.findCommonAncestors('g5a', 'g5c');
+  renderQuery(
+    "q.findCommonAncestors('g5a', 'g5c')",
+    'g5a (Tommy Jr., child of half-sibling g4a) vs g5c (Pat Jr., child of g4b). Closest common ancestor should be g3a.',
+    ca1.map((r) => `  • ${r.person.name}  (distA=${r.distA}, distB=${r.distB}, total=${r.total})`).join('\n') || '(none)'
+  );
+
+  const ca2 = await q.findCommonAncestors('g5c', 'g5f');
+  renderQuery(
+    "q.findCommonAncestors('g5c', 'g5f')",
+    'First cousins through g3a+g3f. Should find both as common ancestors at distance 2,2.',
+    ca2.map((r) => `  • ${r.person.name}  (distA=${r.distA}, distB=${r.distB}, total=${r.total})`).join('\n') || '(none)'
+  );
+
+  const ca3 = await q.findCommonAncestors('g5c', 'g5j');
+  renderQuery(
+    "q.findCommonAncestors('g5c', 'g5j')",
+    'First cousins through Walsh line (g3k+g3l). g5c\'s mother g4g is sister to g5j\'s father g4i.',
+    ca3.map((r) => `  • ${r.person.name}  (distA=${r.distA}, distB=${r.distB}, total=${r.total})`).join('\n') || '(none)'
+  );
+
+  // --- calculateRelationship ---
+  const pairs = [
+    ['g5a', 'g5b', 'full siblings'],
+    ['g5a', 'g5c', 'half first cousins via g3a'],
+    ['g5c', 'g5f', 'first cousins via g3a+g3f'],
+    ['g5c', 'g5j', 'first cousins via g3k+g3l (Walsh line)'],
+    ['g5c', 'g2a', 'great-grandchild / great-grandparent'],
+    ['g5c', 'g1a', 'great-great-great-grandchild / ancestor'],
+    ['g2a', 'g2c', 'spouses (James × Anne)'],
+    ['g3a', 'g3f', 'spouses (PJ × Margarethe, current)'],
+    ['g3a', 'g3b', 'spouses (PJ × Helen, former/deceased)'],
+    ['g5i', 'g4e', 'adoptive mother/daughter (non-biological)'],
+    ['g5i', 'g5c', 'unrelated biologically (Ruth is adopted)'],
+    ['g1a', 'g1e', 'unrelated (Irish vs German immigrant)'],
+  ];
+  for (const [a, b, note] of pairs) {
+    const res = await q.calculateRelationship(a, b);
+    renderQuery(
+      `q.calculateRelationship('${a}', '${b}')`,
+      `${nameOf(db, a)} vs ${nameOf(db, b)} — expected: ${note}`,
+      relationshipDescription(res) + '\n\n' + fmt(res)
+    );
+  }
+
+  // --- getContemporaries ---
+  for (const year of [1850, 1900, 1950, 2000]) {
+    const alive = await q.getContemporaries(year);
+    renderQuery(
+      `q.getContemporaries(${year})`,
+      `${alive.length} person(s) alive in ${year}.`,
+      alive.map((p) => `  • ${p.name}  (${p.id}, b.${yearOf(p.vitals?.birth?.date) ?? '?'}` +
+        `${p.vitals?.death?.date ? `, d.${yearOf(p.vitals.death.date)}` : ', living'})`).join('\n') || '(none)'
+    );
+  }
+
+  // --- getGenerationDepth ---
+  const depthTests = [
+    ['g5c', 'g1a'],  // great-great-great-grandchild of Patrick O'Sullivan
+    ['g1a', 'g5c'],  // reverse
+    ['g5c', 'g3a'],  // grandchild
+    ['g3a', 'g3f'],  // spouses — should be null (no direct line)
+    ['g5i', 'g4e'],  // adopted; biological path: null
+  ];
+  for (const [a, b] of depthTests) {
+    const d = await q.getGenerationDepth(a, b);
+    renderQuery(
+      `q.getGenerationDepth('${a}', '${b}')`,
+      `${nameOf(db, a)} relative to ${nameOf(db, b)}.`,
+      `→ ${d === null ? 'null (no direct biological line)' : d + ' generations'}`
+    );
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*  Main                                                                       */
+/* -------------------------------------------------------------------------- */
+
+async function loadFixture(db) {
+  const bundle = {
+    places: PLACES,
+    sources: SOURCES,
+    persons: PERSONS,
+    relationships: RELATIONSHIPS,
+    events: EVENTS,
+  };
+  return await bulkPut(db, bundle);
+}
+
+async function runAll({ wipeFirst }) {
+  $('#errors').hidden = true;
+  $('#errors-body').textContent = '';
+  try {
+    if (wipeFirst) {
+      await destroyDB(DB_NAME);
+    }
+    const db = await openDB();
+    if (wipeFirst || (await db.persons.count()) === 0) {
+      await db.wipe();
+      await loadFixture(db);
+    }
+    await buildNameCache(db);
+    const q = bindQueries(db);
+
+    // Expose for console exploration.
+    window.orrery = { db, queries: q, fixture: { PLACES, SOURCES, PERSONS, RELATIONSHIPS, EVENTS } };
+
+    renderCounts(await db.counts());
+    await renderTruthStamper(db);
+    await runQueries(db, q);
+  } catch (err) {
+    console.error(err);
+    $('#errors').hidden = false;
+    $('#errors-body').textContent = (err && err.stack) ? err.stack : String(err);
+  }
+}
+
+$('#btn-reload').addEventListener('click', () => runAll({ wipeFirst: false }));
+$('#btn-wipe').addEventListener('click', () => runAll({ wipeFirst: true }));
+
+runAll({ wipeFirst: true });
+
+</script>
+</body>
+</html>
