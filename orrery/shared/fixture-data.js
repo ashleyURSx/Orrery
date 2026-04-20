@@ -152,3 +152,58 @@ const g1 = [
     },
     research_status: 'complete', privacy: 'family' },
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 2 (first US-born, 1852–1865)                          */
+/* -------------------------------------------------------------------------- */
+
+const g2 = [
+  { id: 'g2a', name: "James O'Sullivan", sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1852, 2, 10), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1920, 8, 5), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2b', name: "Margaret O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1854, 7, 22), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1925, 3, 14), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2c', name: 'Anne MacCarthy', sex: 'F', aka: ["Anne MacCarthy O'Sullivan"],
+    vitals: {
+      birth: { date: exactDate(1855, 4, 3), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1922, 10, 19), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2d', name: 'Thomas MacCarthy', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1858, 11, 8), place_id: 'place-boston', source_ids: ['src-us-census-1860'] },
+      death: { date: exactDate(1915, 1, 27), place_id: 'place-boston', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2e', name: 'Friedrich Kessler', sex: 'M', aka: ['Fred Kessler'],
+    vitals: {
+      birth: { date: exactDate(1858, 9, 15), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1930, 4, 2), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2f', name: 'Heinrich Kessler Sr.', sex: 'M', aka: ['Henry Kessler'],
+    vitals: {
+      birth: { date: exactDate(1862, 6, 30), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1935, 11, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2g', name: 'Greta Schmidt', sex: 'F', aka: ['Greta Schmidt Kessler'],
+    vitals: {
+      birth: { date: exactDate(1860, 10, 5), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1928, 7, 11), place_id: 'place-cleveland', source_ids: ['src-us-census-1920'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g2h', name: 'Elsa Schmidt', sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1865, 3, 17), place_id: 'place-nyc', source_ids: ['src-us-census-1880'] },
+      death: { date: exactDate(1940, 5, 23), place_id: 'place-nyc', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
