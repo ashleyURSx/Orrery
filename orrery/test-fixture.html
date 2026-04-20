@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ORRERY — Phase 1 test fixture</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    /* Minimal utility CSS. Phase 3 is where beauty lives — this page is a
+       debugging console for the schema. */
+    :root {
+      --bg: #0c0b13;
+      --panel: #17152a;
+      --text: #e6e1cf;
+      --muted: #8c88a6;
+      --rule: #2a2744;
+      --gold: #d4a84a;
+      --accent: #8b6fff;
+      --verified: #5bbfa3;
+      --unverified: #e06b74;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      background: var(--bg); color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      line-height: 1.45;
+    }
+    body { padding: 2rem 2.5rem 6rem; max-width: 1100px; margin: 0 auto; }
+    h1 { font-weight: 400; letter-spacing: 0.2em; text-transform: uppercase; color: var(--gold); margin: 0 0 0.25rem; }
+    h1 .sub { display: block; color: var(--muted); font-size: 0.75rem; letter-spacing: 0.3em; margin-top: 0.25rem; }
+    h2 { margin: 2.5rem 0 0.75rem; font-size: 1.05rem; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; }
+    h3 { margin: 1.25rem 0 0.5rem; font-size: 0.9rem; color: var(--gold); font-weight: 600; }
+    p, li { font-size: 0.92rem; }
+    code, pre, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    pre {
+      background: var(--panel); border: 1px solid var(--rule);
+      padding: 0.75rem 1rem; border-radius: 6px;
+      white-space: pre-wrap; word-break: break-word;
+      font-size: 0.82rem; line-height: 1.55;
+      max-height: 60vh; overflow-y: auto;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--rule);
+      border-radius: 8px; padding: 1rem 1.25rem; margin: 0.75rem 0;
+    }
+    .row { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .stat {
+      background: var(--panel); border: 1px solid var(--rule);
+      border-radius: 6px; padding: 0.5rem 0.85rem; min-width: 120px;
+    }
+    .stat .label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.15em; }
+    .stat .value { color: var(--gold); font-size: 1.4rem; font-family: ui-monospace, monospace; }
+    .verified { color: var(--verified); }
+    .unverified { color: var(--unverified); font-weight: 600; }
+    .pass { color: var(--verified); }
+    .fail { color: var(--unverified); font-weight: 600; }
+    .muted { color: var(--muted); }
+    .query-label { color: var(--accent); font-weight: 600; }
+    button {
+      background: var(--accent); color: #fff; border: 0;
+      padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;
+      font-family: inherit; font-size: 0.85rem; letter-spacing: 0.05em;
+    }
+    button:hover { filter: brightness(1.1); }
+    .controls { display: flex; gap: 0.75rem; margin: 1rem 0; }
+    ul { padding-left: 1.25rem; }
+    li { margin: 0.15rem 0; }
+    hr { border: 0; border-top: 1px solid var(--rule); margin: 2rem 0; }
+    .tag { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 3px; font-size: 0.72rem; background: var(--rule); color: var(--muted); margin-left: 0.4rem; font-family: ui-monospace, monospace; }
+    .tag.verified { color: var(--verified); border: 1px solid var(--verified); background: transparent; }
+    .tag.unverified { color: var(--unverified); border: 1px solid var(--unverified); background: transparent; }
+  </style>
+</head>
+<body>
+  <h1>ORRERY<span class="sub">phase 1 · test fixture · Cork / Kessler / O'Sullivan</span></h1>
+
+  <p class="muted">
+    Loads 50 people across 5 generations, runs every graph query against them, and
+    prints results below. Open the console and use
+    <code>window.orrery.db</code> and <code>window.orrery.queries</code> to explore.
+  </p>
+
+  <div class="controls">
+    <button id="btn-reload">Reload fixture</button>
+    <button id="btn-wipe">Wipe &amp; reload</button>
+  </div>
+
+  <section id="counts"><h2>Fixture counts</h2><div id="counts-body" class="row"></div></section>
+  <section id="truth-stamper"><h2>Truth Stamper check</h2><div id="truth-body"></div></section>
+  <section id="queries"><h2>Graph query results</h2><div id="queries-body"></div></section>
+  <section id="errors" hidden><h2>Errors</h2><pre id="errors-body"></pre></section>
+
+  <script type="module" src="./test-fixture.mjs"></script>
+</body>
+</html>
