@@ -207,3 +207,105 @@ const g2 = [
     },
     research_status: 'complete', privacy: 'family' },
 ];
+
+/* -------------------------------------------------------------------------- */
+/*  Persons — Generation 3 (born 1880–1895, the cross-lineage marriage)        */
+/* -------------------------------------------------------------------------- */
+//
+// g3a (Patrick James O'Sullivan) bridges Irish and German lines — marries
+// Helen Walsh first (dies 1910), then Margarethe Kessler in 1911.
+//
+// g3b (Helen Walsh) carries the UNVERIFIED birth — no source_ids on her
+// birth vital. This is the Truth Stamper distinction Ashley asked to see.
+
+const g3 = [
+  { id: 'g3a', name: "Patrick James O'Sullivan", sex: 'M', aka: ['P.J. O\'Sullivan'],
+    vitals: {
+      birth: { date: exactDate(1885, 5, 1), place_id: 'place-boston', source_ids: ['src-family-bible-osullivan', 'src-us-census-1900'] },
+      death: { date: exactDate(1955, 9, 14), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family',
+    notes: 'Widowed 1910, remarried 1911. The hinge of the Irish-German merger.' },
+  // --- INTENTIONALLY UNVERIFIED: Helen Walsh's birth has no source_ids. ---
+  { id: 'g3b', name: 'Helen Walsh', sex: 'F', aka: ["Helen Walsh O'Sullivan"],
+    vitals: {
+      birth: { date: approxDate(1886, null, null, 'ABT 1886'), place_id: 'place-boston', source_ids: [] },
+      death: { date: exactDate(1910, 11, 18), place_id: 'place-cleveland', source_ids: ['src-death-cert-1910'] },
+    },
+    research_status: 'incomplete', privacy: 'family',
+    notes: 'First wife of g3a. Birth date is family-oral-history only — UNVERIFIED.' },
+  { id: 'g3c', name: "Michael O'Sullivan", sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1887, 9, 12), place_id: 'place-boston', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1940, 2, 4), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3d', name: "Bridget O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1890, 2, 19), place_id: 'place-boston', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1965, 6, 21), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3e', name: "Maeve O'Sullivan", sex: 'F', aka: [],
+    vitals: {
+      birth: { date: exactDate(1893, 11, 30), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1975, 8, 2), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3f', name: 'Margarethe Kessler', sex: 'F', aka: ['Margarethe Kessler O\'Sullivan', 'Marguerite'],
+    vitals: {
+      birth: { date: exactDate(1892, 4, 6), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1970, 12, 11), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3g', name: 'Wilhelm Kessler II', sex: 'M', aka: ['William Kessler Jr.'],
+    vitals: {
+      birth: { date: exactDate(1885, 7, 9), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1950, 3, 28), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3h', name: 'Heinrich Kessler Jr.', sex: 'M', aka: ['Henry Kessler Jr.'],
+    vitals: {
+      birth: { date: exactDate(1888, 12, 5), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1960, 5, 17), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3i', name: 'Otto Kessler', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1895, 1, 23), place_id: 'place-cleveland', source_ids: ['src-us-census-1900'] },
+      death: { date: exactDate(1970, 10, 4), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3j', name: 'Father Michael Kelly', sex: 'M', aka: ['Fr. Kelly'],
+    vitals: {
+      birth: { date: approxDate(1880), place_id: 'place-cork', source_ids: ['src-oral-aunt-bridget'] },
+      death: { date: exactDate(1960, 8, 9), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'incomplete', privacy: 'family',
+    notes: 'Parish priest, godparent to several of g3a\'s children. Chosen-family edge.' },
+  // --- Spouse-family line: Walsh (g3k, g3l) + Brenner (g3m, g3n) ---
+  { id: 'g3k', name: 'John Walsh Sr.', sex: 'M', aka: [],
+    vitals: {
+      birth: { date: exactDate(1885, 3, 15), place_id: 'place-cork', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1960, 11, 2), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3l', name: 'Bridget Connolly', sex: 'F', aka: ['Bridget Connolly Walsh'],
+    vitals: {
+      birth: { date: exactDate(1888, 6, 12), place_id: 'place-cork', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1965, 4, 8), place_id: 'place-cleveland', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3m', name: 'Heinrich Brenner', sex: 'M', aka: ['Henry Brenner'],
+    vitals: {
+      birth: { date: exactDate(1882, 8, 20), place_id: 'place-hanover', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1955, 1, 15), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+  { id: 'g3n', name: 'Anna Weber', sex: 'F', aka: ['Anna Weber Brenner'],
+    vitals: {
+      birth: { date: exactDate(1885, 10, 3), place_id: 'place-hanover', source_ids: ['src-us-census-1920'] },
+      death: { date: exactDate(1960, 9, 19), place_id: 'place-cincinnati', source_ids: ['src-tombstone-mtcarmel'] },
+    },
+    research_status: 'complete', privacy: 'family' },
+];
