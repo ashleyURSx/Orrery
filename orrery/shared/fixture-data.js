@@ -459,3 +459,107 @@ const g5 = [
 
 export const PERSONS = [...g1, ...g2, ...g3, ...g4, ...g5];
 // Sanity check: 8 + 8 + 14 + 10 + 10 = 50.
+
+/* -------------------------------------------------------------------------- */
+/*  Relationship helpers                                                       */
+/* -------------------------------------------------------------------------- */
+
+let _relId = 0;
+const rel = (a, b, type, extra = {}) => ({
+  id: `rel-${String(++_relId).padStart(3, '0')}`,
+  person_a_id: a, person_b_id: b, type,
+  start_date: null, end_date: null, source_ids: [],
+  ...extra,
+});
+
+// parent-of edge: a=parent, b=child, biological=true by default
+const parent = (a, b, extra = {}) => rel(a, b, 'parent', { biological: true, ...extra });
+const spouse = (a, b, extra = {}) => rel(a, b, 'spouse', extra);
+
+export const RELATIONSHIPS = [
+  /* --- G1 marriages --- */
+  spouse('g1a', 'g1b', { start_date: exactDate(1848, 4, 12), source_ids: ['src-ship-manifest-1850'] }),
+  spouse('g1c', 'g1d', { start_date: exactDate(1850, 6, 3) }),
+  spouse('g1e', 'g1f', { start_date: exactDate(1854, 5, 7), source_ids: ['src-ellis-1853'] }),
+  spouse('g1g', 'g1h', { start_date: exactDate(1856, 9, 1) }),
+
+  /* --- G1 → G2 (biological parent edges) --- */
+  parent('g1a', 'g2a'), parent('g1b', 'g2a'),
+  parent('g1a', 'g2b'), parent('g1b', 'g2b'),
+  parent('g1c', 'g2c'), parent('g1d', 'g2c'),
+  parent('g1c', 'g2d'), parent('g1d', 'g2d'),
+  parent('g1e', 'g2e'), parent('g1f', 'g2e'),
+  parent('g1e', 'g2f'), parent('g1f', 'g2f'),
+  parent('g1g', 'g2g'), parent('g1h', 'g2g'),
+  parent('g1g', 'g2h'), parent('g1h', 'g2h'),
+
+  /* --- G2 marriages (the Irish side + German side stay within their lines) --- */
+  spouse('g2a', 'g2c', { start_date: exactDate(1880, 6, 14), source_ids: ['src-marriage-boston-1880'] }),
+  spouse('g2e', 'g2g', { start_date: exactDate(1884, 9, 20) }),
+
+  /* --- G2 → G3 --- */
+  parent('g2a', 'g3a'), parent('g2c', 'g3a'),
+  parent('g2a', 'g3c'), parent('g2c', 'g3c'),
+  parent('g2a', 'g3d'), parent('g2c', 'g3d'),
+  parent('g2a', 'g3e'), parent('g2c', 'g3e'),
+  parent('g2e', 'g3f'), parent('g2g', 'g3f'),
+  parent('g2e', 'g3g'), parent('g2g', 'g3g'),
+  parent('g2e', 'g3h'), parent('g2g', 'g3h'),
+  parent('g2e', 'g3i'), parent('g2g', 'g3i'),
+
+  /* --- G3 marriages (the cross-lineage hinge) --- */
+  // First marriage: g3a × g3b. Ended by Helen's death 1910.
+  spouse('g3a', 'g3b', {
+    start_date: exactDate(1907, 10, 12),
+    end_date: exactDate(1910, 11, 18),
+    source_ids: ['src-death-cert-1910'],
+  }),
+  // Second marriage: g3a × g3f. The Irish-German merger.
+  spouse('g3a', 'g3f', {
+    start_date: exactDate(1911, 6, 17),
+    source_ids: ['src-marriage-cleveland-1911'],
+  }),
+  // Walsh + Brenner spouse-line marriages (parents of g4g, g4h)
+  spouse('g3k', 'g3l', { start_date: exactDate(1912, 4, 30) }),
+  spouse('g3m', 'g3n', { start_date: exactDate(1910, 7, 22) }),
+
+  /* --- G3 → G4 --- */
+  // g4a is the only child of g3a's first marriage (half-sibling to g4b-e).
+  parent('g3a', 'g4a'), parent('g3b', 'g4a'),
+  parent('g3a', 'g4b'), parent('g3f', 'g4b'),
+  parent('g3a', 'g4c'), parent('g3f', 'g4c'),
+  parent('g3a', 'g4d'), parent('g3f', 'g4d'),
+  parent('g3a', 'g4e'), parent('g3f', 'g4e'),
+  parent('g3k', 'g4g'), parent('g3l', 'g4g'),
+  parent('g3k', 'g4i'), parent('g3l', 'g4i'),
+  parent('g3m', 'g4h'), parent('g3n', 'g4h'),
+
+  /* --- G3 godparent edges (chosen family / non-traditional) --- */
+  rel('g3j', 'g4a', 'godparent'),
+  rel('g3j', 'g4b', 'godparent'),
+  rel('g3j', 'g4c', 'godparent'),
+
+  /* --- G4 marriages --- */
+  spouse('g4a', 'g4f', { start_date: exactDate(1934, 5, 19) }),
+  spouse('g4b', 'g4g', { start_date: exactDate(1940, 8, 3) }),
+  spouse('g4c', 'g4h', { start_date: exactDate(1938, 10, 22) }),
+  spouse('g4i', 'g4j', { start_date: exactDate(1946, 4, 6) }),
+
+  /* --- G4 → G5 --- */
+  parent('g4a', 'g5a'), parent('g4f', 'g5a'),
+  parent('g4a', 'g5b'), parent('g4f', 'g5b'),
+  parent('g4b', 'g5c'), parent('g4g', 'g5c'),
+  parent('g4b', 'g5d'), parent('g4g', 'g5d'),
+  parent('g4b', 'g5e'), parent('g4g', 'g5e'),
+  parent('g4c', 'g5f'), parent('g4h', 'g5f'),
+  parent('g4c', 'g5g'), parent('g4h', 'g5g'),
+  parent('g4c', 'g5h'), parent('g4h', 'g5h'),
+  parent('g4i', 'g5j'), parent('g4j', 'g5j'),
+
+  /* --- Adoption: g4e (Anne, single) adopts g5i (Ruth Chen) --- */
+  rel('g4e', 'g5i', 'adoptive-parent', {
+    biological: false, adoptive: true,
+    start_date: exactDate(1955, 5, 9),
+    source_ids: ['src-adoption-1955'],
+  }),
+];
